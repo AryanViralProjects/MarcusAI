@@ -20,6 +20,7 @@ interface ConversationListProps {
   currentConversationId?: string;
   onSelectConversation: (id: string) => void;
   onNewConversation: () => void;
+  isCreatingConversation?: boolean;
 }
 
 export function ConversationList({
@@ -27,6 +28,7 @@ export function ConversationList({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  isCreatingConversation = false,
 }: ConversationListProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -111,9 +113,19 @@ export function ConversationList({
         variant="outline"
         className="flex items-center justify-start gap-2 mb-2"
         onClick={onNewConversation}
+        disabled={isCreatingConversation}
       >
-        <PlusIcon className="h-4 w-4" />
-        New conversation
+        {isCreatingConversation ? (
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            Creating...
+          </div>
+        ) : (
+          <>
+            <PlusIcon className="h-4 w-4" />
+            New conversation
+          </>
+        )}
       </Button>
 
       {/* Sort options */}

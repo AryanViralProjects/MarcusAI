@@ -155,13 +155,18 @@ export function useConversations() {
         throw new Error('Failed to add message to conversation');
       }
       
-      return await response.json();
+      const result = await response.json();
+      
+      // Refresh conversations after adding a message
+      fetchConversations();
+      
+      return result;
     } catch (err: any) {
       console.error('Error adding message to conversation:', err);
       setError(err.message || 'Failed to add message to conversation');
       return null;
     }
-  }, [session]);
+  }, [session, fetchConversations]);
 
   // Fetch conversations on mount if user is authenticated
   useEffect(() => {

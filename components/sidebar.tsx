@@ -17,6 +17,7 @@ interface SidebarProps {
   onNewConversation: () => void
   isOpen: boolean
   onToggle: () => void
+  isCreatingConversation?: boolean
 }
 
 export function Sidebar({
@@ -25,6 +26,7 @@ export function Sidebar({
   onNewConversation,
   isOpen,
   onToggle,
+  isCreatingConversation = false,
 }: SidebarProps) {
   const { data: session } = useSession()
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -70,6 +72,7 @@ export function Sidebar({
             currentConversationId={currentConversationId}
             onSelectConversation={onSelectConversation}
             onNewConversation={onNewConversation}
+            isCreatingConversation={isCreatingConversation}
           />
         </ScrollArea>
 

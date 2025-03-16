@@ -41,7 +41,7 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   // State
   const { data: session } = useSession()
-  const { addMessageToConversation } = useConversations()
+  const { addMessageToConversation, getConversation, fetchConversations } = useConversations()
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -87,22 +87,23 @@ export function ChatInterface({
     }
   }, [isMounted])
   
-  // Update current conversation when conversations or currentConversationId changes
+  // Fetch current conversation when ID changes
   useEffect(() => {
-    const foundConversation = conversations.find(
-      (conversation) => conversation.id === currentConversationId
-    )
+    const fetchCurrentConversation = async () => {
+      if (session?.user && currentConversationId !== "default") {
+        try {
+          const conversation = await getConversation(currentConversationId);
+          if (conversation) {
+            setCurrentConversation(conversation);
+          }
+        } catch (error) {
+          console.error("Error fetching conversation:", error);
+        }
+      }
+    };
     
-    if (foundConversation) {
-      setCurrentConversation(foundConversation)
-    } else if (currentConversation.id !== currentConversationId) {
-      setCurrentConversation({
-        id: currentConversationId,
-        title: "New conversation",
-        messages: [],
-      })
-    }
-  }, [conversations, currentConversationId, currentConversation.id])
+    fetchCurrentConversation();
+  }, [currentConversationId, session, getConversation]);
   
   // Scroll to bottom of chat when messages change
   useEffect(() => {

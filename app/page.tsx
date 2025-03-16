@@ -12,19 +12,32 @@ export default function Home() {
   const { createConversation } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<string>("default");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
 
   // Create a new conversation
   const handleNewConversation = useCallback(async () => {
-    if (session?.user) {
-      // If user is authenticated, create a new conversation in the database
-      const newConversation = await createConversation("New conversation");
-      if (newConversation) {
-        setCurrentConversationId(newConversation.id);
+    // Set loading state
+    setIsCreatingConversation(true);
+    
+    // Immediately set a temporary ID to trigger UI update
+    const tempId = uuidv4();
+    setCurrentConversationId(tempId);
+    
+    try {
+      if (session?.user) {
+        // If user is authenticated, create a new conversation in the database
+        const newConversation = await createConversation("New conversation");
+        if (newConversation) {
+          setCurrentConversationId(newConversation.id);
+        }
+      } else {
+        // For non-authenticated users, we already set the ID above
+        // No need to do anything else
       }
-    } else {
-      // If user is not authenticated, create a local conversation
-      const newId = uuidv4();
-      setCurrentConversationId(newId);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+    } finally {
+      setIsCreatingConversation(false);
     }
   }, [session, createConversation]);
 
@@ -48,6 +61,7 @@ export default function Home() {
         onNewConversation={handleNewConversation}
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        isCreatingConversation={isCreatingConversation}
       />
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <ChatInterface 
