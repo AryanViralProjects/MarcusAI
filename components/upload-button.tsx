@@ -23,7 +23,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
         onClick={() => setIsImageUploadOpen(!isImageUploadOpen)}
         type="button"
       >
-        <Image className="h-4 w-4" />
+        <Image className="h-4 w-4" aria-label="Upload image" />
       </Button>
       
       {/* Document upload button */}

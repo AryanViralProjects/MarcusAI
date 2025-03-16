@@ -73,7 +73,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
         </div>
         <div className="flex gap-2">
           <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" type="button">
-            <Image className="h-4 w-4" />
+            <Image className="h-4 w-4" aria-label="Upload image" />
           </Button>
           <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" type="button">
             <Paperclip className="h-4 w-4" />
