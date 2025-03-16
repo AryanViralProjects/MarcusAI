@@ -124,7 +124,7 @@ export function SignUpForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors.form && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{errors.form}</div>}
 
-      <SocialAuthButtons isSignUp={true} />
+      <SocialAuthButtons isSignUp={true} callbackUrl="/" />
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">

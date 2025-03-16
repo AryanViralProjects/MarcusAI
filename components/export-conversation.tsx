@@ -29,6 +29,9 @@ export function ExportConversation({ conversation, trigger }: ExportConversation
     let filename = `${conversation.title || 'conversation'}-${new Date().toISOString().split('T')[0]}`;
     let mimeType = '';
 
+    // Ensure messages exists and is an array
+    const messages = conversation.messages || [];
+    
     switch (exportFormat) {
       case 'json':
         content = JSON.stringify(conversation, null, 2);
@@ -36,18 +39,22 @@ export function ExportConversation({ conversation, trigger }: ExportConversation
         mimeType = 'application/json';
         break;
       case 'markdown':
-        content = conversation.messages.map(message => {
-          const role = message.role === 'user' ? 'You' : 'Marcus AI';
-          return `## ${role}\n\n${message.content}\n\n`;
-        }).join('---\n\n');
+        content = messages.length > 0 
+          ? messages.map(message => {
+              const role = message.role === 'user' ? 'You' : 'Marcus AI';
+              return `## ${role}\n\n${message.content}\n\n`;
+            }).join('---\n\n')
+          : '# Empty Conversation';
         filename += '.md';
         mimeType = 'text/markdown';
         break;
       case 'text':
-        content = conversation.messages.map(message => {
-          const role = message.role === 'user' ? 'You' : 'Marcus AI';
-          return `${role}:\n${message.content}\n\n`;
-        }).join('');
+        content = messages.length > 0
+          ? messages.map(message => {
+              const role = message.role === 'user' ? 'You' : 'Marcus AI';
+              return `${role}:\n${message.content}\n\n`;
+            }).join('')
+          : 'Empty Conversation';
         filename += '.txt';
         mimeType = 'text/plain';
         break;

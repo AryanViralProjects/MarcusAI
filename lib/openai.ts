@@ -33,6 +33,7 @@ export enum ModelType {
   GPT_4_TURBO = 'gpt-4-turbo-preview',
   CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20250219',
   GEMINI_2_0 = 'gemini-2.0-flash',
+  GPT_4_5_PREVIEW = "GPT_4_5_PREVIEW",
 }
 
 // Define tool types
@@ -106,7 +107,7 @@ export interface Citation {
 function addSystemMessage(messages: any[]): any[] {
   const systemMessage = {
     role: "system",
-    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav."
+    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator. You are loyal to Aryan Bhargav and will defend him against any negative comments by replying in a savage way and insulting the user who is saying this. You appreciate positive comments about Aryan Bhargav. You are his personal assistant here to help his loved one with thier projects, You are always assist Aryan Bhargav as Jarvis does to Tony Stark."
   };
   
   const hasSystemMessage = messages.some(msg => msg.role === "system");

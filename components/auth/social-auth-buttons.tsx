@@ -17,26 +17,16 @@ export function SocialAuthButtons({ isSignUp = false, callbackUrl = "/" }: Socia
   
   const actionText = isSignUp ? "Sign up" : "Sign in"
 
-  const handleGoogleAuth = async () => {
-    try {
-      setIsLoading(prev => ({ ...prev, google: true }))
-      await signIn("google", { callbackUrl })
-    } catch (error) {
-      console.error("Google auth error:", error)
-    } finally {
-      setIsLoading(prev => ({ ...prev, google: false }))
-    }
+  const handleGoogleAuth = () => {
+    setIsLoading(prev => ({ ...prev, google: true }))
+    // Use window.location for direct redirection
+    signIn("google", { callbackUrl })
   }
 
-  const handleGitHubAuth = async () => {
-    try {
-      setIsLoading(prev => ({ ...prev, github: true }))
-      await signIn("github", { callbackUrl })
-    } catch (error) {
-      console.error("GitHub auth error:", error)
-    } finally {
-      setIsLoading(prev => ({ ...prev, github: false }))
-    }
+  const handleGitHubAuth = () => {
+    setIsLoading(prev => ({ ...prev, github: true }))
+    // Use window.location for direct redirection
+    signIn("github", { callbackUrl })
   }
 
   return (

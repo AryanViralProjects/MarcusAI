@@ -476,54 +476,54 @@ export function ChatInterface({
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[calc(100vh-180px)]">
         <h1 className="text-3xl font-bold mb-8">Ask Marcus AI anything</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           <div 
-            className="bg-card hover:bg-card/80 border rounded-lg p-4 cursor-pointer transition-colors"
-            onClick={() => handleSuggestionClick("Improve my email writing")}
+            className="bg-card hover:bg-card/80 border rounded-lg p-5 cursor-pointer transition-colors transform hover:scale-105 hover:shadow-lg"
+            onClick={() => handleSuggestionClick("Help me write a professional email to request a meeting with a potential client")}
           >
-            <div className="aspect-video rounded-md overflow-hidden mb-4 bg-muted">
+            <div className="aspect-video rounded-lg overflow-hidden mb-5 bg-muted shadow-md">
               <img 
-                src="/images/email-writing.jpg" 
+                src="/email-writing.png" 
                 alt="Email writing" 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = "https://placehold.co/400x225/e2e8f0/64748b?text=Email+Writing";
+                  e.currentTarget.src = "/email-writing.png";
                 }}
               />
             </div>
-            <h3 className="font-medium text-center">Improve my email writing</h3>
+            <h3 className="font-medium text-center text-lg">Improve my email writing</h3>
           </div>
           <div 
-            className="bg-card hover:bg-card/80 border rounded-lg p-4 cursor-pointer transition-colors"
-            onClick={() => handleSuggestionClick("Movie recommendations")}
+            className="bg-card hover:bg-card/80 border rounded-lg p-5 cursor-pointer transition-colors transform hover:scale-105 hover:shadow-lg"
+            onClick={() => handleSuggestionClick("Suggest some movies similar to Inception and Interstellar")}
           >
-            <div className="aspect-video rounded-md overflow-hidden mb-4 bg-muted">
+            <div className="aspect-video rounded-lg overflow-hidden mb-5 bg-muted shadow-md">
               <img 
-                src="/images/movie-recommendations.jpg" 
+                src="/movie-recommendation.png" 
                 alt="Movie recommendations" 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = "https://placehold.co/400x225/e2e8f0/64748b?text=Movie+Recommendations";
+                  e.currentTarget.src = "/movie-recommendation.png";
                 }}
               />
             </div>
-            <h3 className="font-medium text-center">Movie recommendations</h3>
+            <h3 className="font-medium text-center text-lg">Movie recommendations</h3>
           </div>
           <div 
-            className="bg-card hover:bg-card/80 border rounded-lg p-4 cursor-pointer transition-colors"
-            onClick={() => handleSuggestionClick("Adventure planning")}
+            className="bg-card hover:bg-card/80 border rounded-lg p-5 cursor-pointer transition-colors transform hover:scale-105 hover:shadow-lg"
+            onClick={() => handleSuggestionClick("Tell me about recent developments in space exploration and Mars missions")}
           >
-            <div className="aspect-video rounded-md overflow-hidden mb-4 bg-muted">
+            <div className="aspect-video rounded-lg overflow-hidden mb-5 bg-muted shadow-md">
               <img 
-                src="/images/adventure-planning.jpg" 
-                alt="Adventure planning" 
+                src="/space-rocket.png" 
+                alt="Space exploration" 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = "https://placehold.co/400x225/e2e8f0/64748b?text=Adventure+Planning";
+                  e.currentTarget.src = "/space-rocket.png";
                 }}
               />
             </div>
-            <h3 className="font-medium text-center">Adventure planning</h3>
+            <h3 className="font-medium text-center text-lg">Let's Talk About Space</h3>
           </div>
         </div>
       </div>
