@@ -1,33 +1,48 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ChatInterface } from "@/components/chat-interface";
 import { Sidebar } from "@/components/sidebar";
-import type { Conversation } from "@/types/chat";
+import { useSession } from "next-auth/react";
+import { useConversations } from "@/hooks/use-conversations";
+import { v4 as uuidv4 } from "uuid";
 
 export default function Home() {
+  const { data: session } = useSession();
+  const { createConversation } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<string>("default");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Use useCallback to prevent recreating these functions on every render
-  const handleNewConversation = useCallback(() => {
-    const newId = Date.now().toString();
-    setCurrentConversationId(newId);
-  }, []);
+  // Create a new conversation
+  const handleNewConversation = useCallback(async () => {
+    if (session?.user) {
+      // If user is authenticated, create a new conversation in the database
+      const newConversation = await createConversation("New conversation");
+      if (newConversation) {
+        setCurrentConversationId(newConversation.id);
+      }
+    } else {
+      // If user is not authenticated, create a local conversation
+      const newId = uuidv4();
+      setCurrentConversationId(newId);
+    }
+  }, [session, createConversation]);
 
-  const handleUpdateConversations = useCallback((updatedConversations: Conversation[]) => {
-    setConversations(updatedConversations);
-  }, []);
-
+  // Handle selecting a conversation
   const handleSelectConversation = useCallback((id: string) => {
     setCurrentConversationId(id);
   }, []);
 
+  // Create a default conversation on first load if needed
+  useEffect(() => {
+    if (currentConversationId === "default") {
+      handleNewConversation();
+    }
+  }, [currentConversationId, handleNewConversation]);
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar
-        conversations={conversations}
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
@@ -38,7 +53,6 @@ export default function Home() {
         <ChatInterface 
           currentConversationId={currentConversationId}
           onNewConversation={handleNewConversation}
-          onUpdateConversations={handleUpdateConversations}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           isSidebarOpen={isSidebarOpen}
         />

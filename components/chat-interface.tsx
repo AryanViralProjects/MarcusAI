@@ -15,6 +15,8 @@ import ReactMarkdown from "react-markdown"
 import { SuggestionCards } from "@/components/suggestion-cards"
 import { ModelSelector } from "@/components/model-selector"
 import { ToolSelector } from "@/components/tool-selector"
+import { useConversations } from "@/hooks/use-conversations"
+import { useSession } from "next-auth/react"
 
 const MODEL_OPTIONS = {
   GPT_4_5: "gpt-4.5-preview-2025-02-27",
@@ -26,7 +28,6 @@ interface ChatInterfaceProps {
   className?: string
   currentConversationId: string
   onNewConversation: () => void
-  onUpdateConversations: (conversations: Conversation[]) => void
   onToggleSidebar: () => void
   isSidebarOpen: boolean
 }
@@ -35,11 +36,12 @@ export function ChatInterface({
   className,
   currentConversationId,
   onNewConversation,
-  onUpdateConversations,
   onToggleSidebar,
   isSidebarOpen
 }: ChatInterfaceProps) {
   // State
+  const { data: session } = useSession()
+  const { addMessageToConversation } = useConversations()
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -77,13 +79,13 @@ export function ChatInterface({
       setConversations(loadedConversations)
       
       // Wrap in setTimeout to avoid setState during render error
-      if (typeof onUpdateConversations === 'function' && loadedConversations.length > 0) {
+      if (loadedConversations.length > 0) {
         setTimeout(() => {
-          onUpdateConversations(loadedConversations)
+          setConversations(loadedConversations)
         }, 0)
       }
     }
-  }, [isMounted, onUpdateConversations])
+  }, [isMounted])
   
   // Update current conversation when conversations or currentConversationId changes
   useEffect(() => {
@@ -129,16 +131,9 @@ export function ChatInterface({
       // Save the updated conversations to local storage
       saveConversations(updatedConversations)
       
-      // Wrap in setTimeout to avoid setState during render error
-      if (typeof onUpdateConversations === 'function') {
-        setTimeout(() => {
-          onUpdateConversations(updatedConversations)
-        }, 0)
-      }
-      
       return updatedConversations
     })
-  }, [onUpdateConversations])
+  }, [])
 
   // Handle file upload completion
   const handleUploadComplete = useCallback((url: string, type: "image" | "document") => {
@@ -163,7 +158,11 @@ export function ChatInterface({
   // Handle tools change with proper type safety
   const handleToolsChange = useCallback((toolIds: ToolType[]) => {
     console.log(`ChatInterface - Tools change handler called with: ${toolIds}`);
-    setSelectedTools(toolIds);
+    // Filter out any FILE_SEARCH or COMPUTER_USE tools as they're coming soon
+    const availableTools = toolIds.filter(
+      tool => tool !== ToolType.FILE_SEARCH && tool !== ToolType.COMPUTER_USE
+    );
+    setSelectedTools(availableTools);
   }, []);
 
   // Add effect to track model changes
@@ -268,13 +267,6 @@ export function ChatInterface({
       
       saveConversations(updatedConversations)
       
-      // Wrap in setTimeout to avoid setState during render error
-      if (typeof onUpdateConversations === 'function') {
-        setTimeout(() => {
-          onUpdateConversations(updatedConversations)
-        }, 0)
-      }
-      
       return updatedConversations
     })
 
@@ -297,26 +289,49 @@ export function ChatInterface({
       // Get user preferences
       const userPreferences = loadUserPreferences()
       
+      // Prepare API request
+      const apiRequestBody = {
+        messages: updatedMessages,
+        preferences: userPreferences,
+        model: selectedModel,
+        tools: selectedTools,
+        conversationId: session?.user ? currentConversationId : undefined
+      };
+      
       // Send the message to the API
-      const response = await getAssistantResponse(
-        updatedMessages, 
-        selectedModel,
-        selectedTools
-      )
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiRequestBody),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get response from API');
+      }
+      
+      const apiResponse = await response.json();
       
       // Log the response for debugging
-      console.log("API response:", response);
+      console.log("API response:", apiResponse);
       console.log("Used model:", selectedModel);
       console.log("Used tools:", selectedTools);
       
-      if (response) {
+      if (apiResponse) {
         // Create assistant message
         const assistantMessage: Message = {
           id: Date.now().toString(),
           role: "assistant",
-          content: response.content || "I'm not sure how to respond to that.",
+          content: apiResponse.content || "I'm not sure how to respond to that.",
           timestamp: new Date().toISOString(),
-          citations: response.citations // Include citations if available
+          citations: apiResponse.citations // Include citations if available
+        }
+
+        // If the API created a new conversation, update the current conversation ID
+        if (apiResponse.conversationId && apiResponse.conversationId !== currentConversationId) {
+          // This is a new conversation created by the API
+          onNewConversation();
         }
 
         // Update current conversation with assistant message
@@ -338,13 +353,6 @@ export function ChatInterface({
           })
           
           saveConversations(updatedConversations)
-          
-          // Wrap in setTimeout to avoid setState during render error
-          if (typeof onUpdateConversations === 'function') {
-            setTimeout(() => {
-              onUpdateConversations(updatedConversations)
-            }, 0)
-          }
           
           return updatedConversations
         })
@@ -379,19 +387,12 @@ export function ChatInterface({
         
         saveConversations(updatedConversations)
         
-        // Wrap in setTimeout to avoid setState during render error
-        if (typeof onUpdateConversations === 'function') {
-          setTimeout(() => {
-            onUpdateConversations(updatedConversations)
-          }, 0)
-        }
-        
         return updatedConversations
       })
     } finally {
       setIsLoading(false)
     }
-  }, [input, attachments, isLoading, currentConversation, currentConversationId, onUpdateConversations, updateConversationTitle, selectedModel, selectedTools])
+  }, [input, attachments, isLoading, currentConversation, currentConversationId, updateConversationTitle, selectedModel, selectedTools, session, onNewConversation])
 
   // Handle textarea input including Enter key to send
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -536,36 +537,6 @@ export function ChatInterface({
 
   return (
     <>
-      {/* Chat header */}
-      <div className="border-b p-3 flex items-center justify-between">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={onToggleSidebar}
-          className="md:hidden"
-        >
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle sidebar</span>
-        </Button>
-        <div className="flex items-center">
-          <Avatar className="h-8 w-8 mr-2">
-            <AvatarImage src="/marcus-avatar.png" />
-            <AvatarFallback className="bg-gradient-to-br from-blue-600 to-blue-400 text-white">
-              M
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium">Marcus AI</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onNewConversation}>
-            <span className="sr-only">New conversation</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </Button>
-        </div>
-      </div>
-
       {/* Add custom CSS for chat citations */}
       <style jsx global>{`
         .sources-section {

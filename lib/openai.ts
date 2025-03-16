@@ -5,16 +5,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize API clients
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "your-openai-api-key",
+  apiKey: process.env.OPENAI_API_KEY || '',
   dangerouslyAllowBrowser: true,
 });
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "your-anthropic-api-key",
+  apiKey: process.env.ANTHROPIC_API_KEY || '',
   dangerouslyAllowBrowser: true,
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "your-google-api-key");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 // Message interface
 export interface Message {

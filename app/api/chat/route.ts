@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createChatCompletion, ChatMessage, ModelType, ToolType } from '@/lib/openai';
+import { getChatCompletion, Message as OpenAiMessage, ModelType, ToolType } from '@/lib/openai';
 import { validateEnv } from '@/lib/config';
 import { UserPreferences, defaultPreferences } from '@/lib/personalization';
-import { Message, Attachment } from '@/types/chat';
+import { Message, Attachment, Citation } from '@/types/chat';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { addMessageToConversation, createConversation } from '@/lib/conversation-service';
 
 export async function POST(req: NextRequest) {
   try {
     // Validate environment variables
     validateEnv();
     
-    const { messages, preferences = defaultPreferences, model = ModelType.GPT_4_5_PREVIEW, tools = [] } = await req.json();
+    const { messages, preferences = defaultPreferences, model = ModelType.GPT_4_5, tools = [], conversationId } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -51,20 +54,73 @@ export async function POST(req: NextRequest) {
         return {
           role: m.role,
           content: m.content
-        } as ChatMessage;
+        } as OpenAiMessage;
       });
 
     console.log('Chat API - Model:', model);
     console.log('Chat API - Tools:', tools);
 
     // Generate response from OpenAI with user preferences
-    const response = await createChatCompletion(
-      enhancedUserMessage, 
+    const response = await getChatCompletion(
       chatHistory, 
-      preferences as UserPreferences,
       model as ModelType,
-      tools as ToolType[]
+      // Filter out any FILE_SEARCH or COMPUTER_USE tools as they're coming soon
+      (tools as ToolType[]).filter(
+        tool => tool !== ToolType.FILE_SEARCH && tool !== ToolType.COMPUTER_USE
+      )
     );
+
+    // Check if user is authenticated and save the conversation if they are
+    const session = await getServerSession(authOptions);
+    if (session?.user) {
+      try {
+        // Determine which conversation to use
+        let activeConversationId = conversationId;
+        
+        // If no conversation ID was provided, create a new conversation
+        if (!activeConversationId) {
+          // Generate a title from the first user message
+          const firstUserMessage = messages.find(m => m.role === 'user');
+          const title = firstUserMessage ? 
+            firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '') : 
+            'New conversation';
+          
+          const newConversation = await createConversation(title);
+          if (newConversation) {
+            activeConversationId = newConversation.id;
+            // Add the conversation ID to the response
+            (response as any).conversationId = activeConversationId;
+          }
+        }
+        
+        if (activeConversationId) {
+          // Save the user message
+          await addMessageToConversation(activeConversationId, {
+            role: latestUserMessage.role,
+            content: latestUserMessage.content,
+            // Handle citations if present
+            citations: latestUserMessage.citations?.map(citation => ({
+              title: citation.title,
+              url: citation.url
+            }))
+          });
+          
+          // Save the assistant message
+          await addMessageToConversation(activeConversationId, {
+            role: response.role,
+            content: response.content,
+            // Handle citations if present
+            citations: response.citations?.map((citation: Citation) => ({
+              title: citation.title,
+              url: citation.url
+            }))
+          });
+        }
+      } catch (dbError) {
+        console.error('Error saving conversation to database:', dbError);
+        // Continue with the response even if saving to DB fails
+      }
+    }
 
     return NextResponse.json(response);
   } catch (error: any) {

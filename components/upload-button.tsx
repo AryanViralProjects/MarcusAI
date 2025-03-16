@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { UploadButton as UTUploadButton } from "@uploadthing/react";
-import { Image, Paperclip } from "lucide-react";
+import { Image, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UploadButtonProps {
@@ -19,7 +19,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
       <Button
         variant="outline"
         size="icon"
-        className="rounded-full"
+        className="rounded-full border-muted-foreground/20 hover:bg-muted hover:text-primary"
         onClick={() => setIsImageUploadOpen(!isImageUploadOpen)}
         type="button"
       >
@@ -30,7 +30,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
       <Button
         variant="outline"
         size="icon"
-        className="rounded-full"
+        className="rounded-full border-muted-foreground/20 hover:bg-muted hover:text-primary"
         onClick={() => setIsDocumentUploadOpen(!isDocumentUploadOpen)}
         type="button"
       >
@@ -39,8 +39,18 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
 
       {/* Image upload component */}
       {isImageUploadOpen && (
-        <div className="absolute bottom-20 right-20 z-10 bg-background border rounded-md p-4 shadow-lg">
-          <div className="mb-2 text-sm font-medium">Upload an image</div>
+        <div className="absolute bottom-20 right-20 z-10 bg-background border border-border rounded-lg p-4 shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium">Upload an image</div>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setIsImageUploadOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           {/* @ts-ignore - Ignoring type issues with UploadThing for now */}
           <UTUploadButton
             endpoint="imageUploader"
@@ -54,22 +64,25 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
               console.error("Image upload error:", error);
               alert("Error uploading image");
             }}
+            className="ut-button:bg-primary ut-button:text-primary-foreground ut-button:hover:bg-primary/90 ut-button:rounded-md ut-button:transition-colors"
           />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="mt-2"
-            onClick={() => setIsImageUploadOpen(false)}
-          >
-            Cancel
-          </Button>
         </div>
       )}
 
       {/* Document upload component */}
       {isDocumentUploadOpen && (
-        <div className="absolute bottom-20 right-20 z-10 bg-background border rounded-md p-4 shadow-lg">
-          <div className="mb-2 text-sm font-medium">Upload a document</div>
+        <div className="absolute bottom-20 right-20 z-10 bg-background border border-border rounded-lg p-4 shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium">Upload a document</div>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setIsDocumentUploadOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           {/* @ts-ignore - Ignoring type issues with UploadThing for now */}
           <UTUploadButton
             endpoint="documentUploader"
@@ -83,15 +96,8 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
               console.error("Document upload error:", error);
               alert("Error uploading document");
             }}
+            className="ut-button:bg-primary ut-button:text-primary-foreground ut-button:hover:bg-primary/90 ut-button:rounded-md ut-button:transition-colors"
           />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="mt-2"
-            onClick={() => setIsDocumentUploadOpen(false)}
-          >
-            Cancel
-          </Button>
         </div>
       )}
     </>

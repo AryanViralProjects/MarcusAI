@@ -59,7 +59,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         <DialogHeader>
           <DialogTitle>Personalize Marcus</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-6 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
               Your Name
@@ -87,63 +87,63 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             />
           </div>
 
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label className="text-right pt-2">Communication Style</Label>
+          <div className="grid grid-cols-1 gap-4 mb-2">
+            <div className="text-sm font-medium mb-2">Communication Style</div>
             <RadioGroup
               value={preferences.communicationStyle}
               onValueChange={(value: 'formal' | 'casual' | 'friendly' | 'professional') => 
                 handleRadioChange("communicationStyle", value)
               }
-              className="col-span-3"
+              className="space-y-3"
             >
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="casual" id="casual" />
-                <Label htmlFor="casual">Casual</Label>
+                <Label htmlFor="casual" className="cursor-pointer">Casual</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="friendly" id="friendly" />
-                <Label htmlFor="friendly">Friendly</Label>
+                <Label htmlFor="friendly" className="cursor-pointer">Friendly</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="professional" id="professional" />
-                <Label htmlFor="professional">Professional</Label>
+                <Label htmlFor="professional" className="cursor-pointer">Professional</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="formal" id="formal" />
-                <Label htmlFor="formal">Formal</Label>
+                <Label htmlFor="formal" className="cursor-pointer">Formal</Label>
               </div>
             </RadioGroup>
           </div>
 
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label className="text-right pt-2">AI Personality</Label>
+          <div className="grid grid-cols-1 gap-4 mb-2">
+            <div className="text-sm font-medium mb-2">AI Personality</div>
             <RadioGroup
               value={preferences.aiPersonality}
               onValueChange={(value: 'helpful' | 'creative' | 'analytical' | 'empathetic') => 
                 handleRadioChange("aiPersonality", value)
               }
-              className="col-span-3"
+              className="space-y-3"
             >
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="helpful" id="helpful" />
-                <Label htmlFor="helpful">Helpful</Label>
+                <Label htmlFor="helpful" className="cursor-pointer">Helpful</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="creative" id="creative" />
-                <Label htmlFor="creative">Creative</Label>
+                <Label htmlFor="creative" className="cursor-pointer">Creative</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="analytical" id="analytical" />
-                <Label htmlFor="analytical">Analytical</Label>
+                <Label htmlFor="analytical" className="cursor-pointer">Analytical</Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 py-1">
                 <RadioGroupItem value="empathetic" id="empathetic" />
-                <Label htmlFor="empathetic">Empathetic</Label>
+                <Label htmlFor="empathetic" className="cursor-pointer">Empathetic</Label>
               </div>
             </RadioGroup>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="pt-6">
           <Button type="submit" onClick={handleSave}>
             Save Preferences
           </Button>

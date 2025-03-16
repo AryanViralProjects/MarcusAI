@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+# Instruction
+
+- make sure each file stays under 800 lines of code, if longer, create a new file and update the README to explain it
+- dont move files without asking, you can create new ones but no 
+- Only perform the task mentioned, if you want to do something better then ask the user for this and provide the benifit of it before implementing in the file
+- If you need any info to debug or change anything, please ask for it 
+- Do not broke or ruin the UI of the application whenever you are updating or trying new changes in the file 
+- always tell the user to check the application through development server after a major change in the file or after a change in the ui of the application 
