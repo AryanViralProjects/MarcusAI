@@ -1,6 +1,6 @@
 # 🧠 Marcus AI - Your Personalized AI Assistant
 
-<img src="u3816384772_make_it_stars_--v_6.1_60444d73-058a-4ca7-a1a7-6af27c643847_1%20(1).png" alt="Marcus AI" width="500"/>
+<img src="u3816384772_make_it_stars_--v_6.1_60444d73-058a-4ca7-a1a7-6af27c643847_1%20(1).png" alt="Marcus AI" width="200"/>
 
 ## ✨ Overview
 
