@@ -545,8 +545,25 @@ async function handleFileSearch(query: string): Promise<{ content: string, citat
       return null;
     }).filter(Boolean) || [];
     
+    // Clean up the response text to remove markdown formatting
+    let cleanedContent = textContent.text;
+    
+    // Remove bold markdown formatting (**text**)
+    cleanedContent = cleanedContent.replace(/\*\*(.*?)\*\*/g, '$1');
+    
+    // Format numbered lists to ensure proper spacing
+    cleanedContent = cleanedContent.replace(/(\d+)\.\s+/g, '\n$1. ');
+    
+    // Ensure consistent spacing for readability
+    cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n');
+    
+    // Trim any extra whitespace
+    cleanedContent = cleanedContent.trim();
+    
+    console.log("Cleaned file search content:", cleanedContent.substring(0, 100) + "...");
+    
     return {
-      content: textContent.text,
+      content: cleanedContent,
       citations: citations.length > 0 ? citations : undefined,
     };
   } catch (error) {
