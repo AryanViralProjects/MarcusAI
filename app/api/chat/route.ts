@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
       );
     }
     
+    // Add request timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 90000); // 90 seconds timeout
+    
     let requestBody;
     try {
       requestBody = await req.json();
@@ -43,6 +49,7 @@ export async function POST(req: NextRequest) {
     console.log(`Chat API: ${model}, tools=${tools.length}, msgs=${messages?.length}, convId=${conversationId || 'new'}`);
 
     if (!messages || !Array.isArray(messages)) {
+      clearTimeout(timeoutId);
       return NextResponse.json(
         { error: 'Messages are required and must be an array' },
         { status: 400 }
@@ -53,14 +60,42 @@ export async function POST(req: NextRequest) {
     const latestUserMessage = [...messages].reverse().find(m => m.role === 'user') as Message | undefined;
     
     if (!latestUserMessage) {
+      clearTimeout(timeoutId);
       return NextResponse.json(
         { error: 'No user message found' },
         { status: 400 }
       );
     }
 
+    // Check if message is very long and simplify to prevent timeouts
+    const userMessageLength = latestUserMessage.content?.length || 0;
+    console.log(`Message length: ${userMessageLength} characters`);
+    
+    // For very long messages, trim history to prevent timeouts
+    let processedMessages = messages;
+    if (userMessageLength > 5000) {
+      console.log("Long message detected, optimizing request");
+      // Keep only recent messages to reduce context length
+      const systemMessage = messages.find(m => m.role === 'system');
+      const lastUserMessages = messages.filter(m => m.role === 'user').slice(-3);
+      const lastAssistantMessages = messages.filter(m => m.role === 'assistant').slice(-3);
+      
+      processedMessages = [
+        ...(systemMessage ? [systemMessage] : []),
+        ...lastAssistantMessages,
+        ...lastUserMessages
+      ].sort((a, b) => {
+        // Sort messages by timestamp if available
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeA - timeB;
+      });
+      
+      console.log(`Reduced message count from ${messages.length} to ${processedMessages.length}`);
+    }
+
     // Get all messages without system for the API
-    const chatHistory = messages
+    const chatHistory = processedMessages
       .filter(m => m.role !== 'system')
       .map(m => {
         // Fast transformation with minimal object creation
@@ -87,12 +122,21 @@ export async function POST(req: NextRequest) {
     // Filter out unsupported tools
     const filteredTools = activeTools.filter(tool => tool !== ToolType.COMPUTER_USE);
 
-    // Generate AI response
+    // Generate AI response with timeout
     let response;
     try {
-      response = await getChatCompletion(chatHistory, model as ModelType, filteredTools);
+      // Pass abort signal to enable timeout
+      response = await getChatCompletion(chatHistory, model as ModelType, filteredTools, controller.signal);
     } catch (openaiError: any) {
+      clearTimeout(timeoutId);
       console.error('Error from AI API:', openaiError);
+      
+      if (openaiError.name === 'AbortError' || openaiError.message?.includes('aborted')) {
+        return NextResponse.json(
+          { error: 'Request timed out. Please try a shorter prompt or try again later.' },
+          { status: 504 }
+        );
+      }
       
       if (openaiError.message?.includes('rate_limit') || openaiError.message?.includes('timeout')) {
         return NextResponse.json(
@@ -105,6 +149,8 @@ export async function POST(req: NextRequest) {
         { error: 'Failed to generate AI response', details: openaiError.message },
         { status: 500 }
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     // Process conversation - fast path for local conversations

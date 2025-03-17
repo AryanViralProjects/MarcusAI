@@ -299,74 +299,120 @@ export function ChatInterface({
         conversationId: session?.user ? currentConversationId : undefined
       };
       
-      // Send the message to the API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiRequestBody),
-      });
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
       
-      if (!response.ok) {
-        throw new Error('Failed to get response from API');
-      }
-      
-      const apiResponse = await response.json();
-      
-      // Log the response for debugging
-      console.log("API response:", apiResponse);
-      console.log("Used model:", selectedModel);
-      console.log("Used tools:", selectedTools);
-      
-      if (apiResponse) {
-        // Create assistant message
-        const assistantMessage: Message = {
-          id: Date.now().toString(),
-          role: "assistant",
-          content: apiResponse.content || "I'm not sure how to respond to that.",
-          timestamp: new Date().toISOString(),
-          citations: apiResponse.citations // Include citations if available
-        }
-
-        // If the API created a new conversation, update the current conversation ID
-        if (apiResponse.conversationId && apiResponse.conversationId !== currentConversationId) {
-          // This is a new conversation created by the API
-          onNewConversation();
-        }
-
-        // Update current conversation with assistant message
-        setCurrentConversation(prev => ({
-          ...prev,
-          messages: [...prev.messages, assistantMessage]
-        }))
-
-        // Update conversation with assistant message
-        setConversations((prevConversations) => {
-          const updatedConversations = prevConversations.map((conversation) => {
-            if (conversation.id === currentConversationId) {
-              return {
-                ...conversation,
-                messages: [...conversation.messages, assistantMessage],
-              }
+      try {
+        // Send the message to the API with timeout
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(apiRequestBody),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          // Check for specific status codes
+          if (response.status === 504) {
+            throw new Error('Request timed out. The AI service is taking too long to respond.');
+          } else if (response.status === 429) {
+            throw new Error('The AI service is currently busy. Please try again in a moment.');
+          } else {
+            // Try to get error details if possible
+            const errorData = await response.json().catch(() => null);
+            if (errorData?.error) {
+              throw new Error(errorData.error);
+            } else {
+              throw new Error(`API error: ${response.status} ${response.statusText}`);
             }
-            return conversation
+          }
+        }
+        
+        const apiResponse = await response.json();
+        
+        // Log the response for debugging
+        console.log("API response:", apiResponse);
+        console.log("Used model:", selectedModel);
+        console.log("Used tools:", selectedTools);
+        
+        if (apiResponse) {
+          // Create assistant message
+          const assistantMessage: Message = {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: apiResponse.content || "I'm not sure how to respond to that.",
+            timestamp: new Date().toISOString(),
+            citations: apiResponse.citations // Include citations if available
+          }
+
+          // If the API created a new conversation, update the current conversation ID
+          if (apiResponse.conversationId && apiResponse.conversationId !== currentConversationId) {
+            // This is a new conversation created by the API
+            onNewConversation();
+          }
+
+          // Update current conversation with assistant message
+          setCurrentConversation(prev => ({
+            ...prev,
+            messages: [...prev.messages, assistantMessage]
+          }))
+
+          // Update conversation with assistant message
+          setConversations((prevConversations) => {
+            const updatedConversations = prevConversations.map((conversation) => {
+              if (conversation.id === currentConversationId) {
+                return {
+                  ...conversation,
+                  messages: [...conversation.messages, assistantMessage],
+                }
+              }
+              return conversation
+            })
+            
+            saveConversations(updatedConversations)
+            
+            return updatedConversations
           })
-          
-          saveConversations(updatedConversations)
-          
-          return updatedConversations
-        })
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // Handle AbortController timeouts specifically
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timed out. Please try a shorter message or try again later.');
+        }
+        
+        throw fetchError;
       }
     } catch (error) {
       console.error("Error sending message:", error)
       
-      // Add error message
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: "Sorry, there was an error processing your request. Please try again.",
-        timestamp: new Date().toISOString(),
+      // Format user-friendly error message
+      let errorMessage: Message;
+      
+      if (error instanceof Error) {
+        const errorText = error.message.includes('Failed to fetch') 
+          ? 'Network error: Please check your internet connection and try again.'
+          : error.message;
+          
+        errorMessage = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: `Error: ${errorText}`,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        errorMessage = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "Sorry, there was an error processing your request. Please try again later.",
+          timestamp: new Date().toISOString(),
+        };
       }
 
       // Update current conversation with error message

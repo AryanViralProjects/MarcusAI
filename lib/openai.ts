@@ -28,11 +28,13 @@ export interface Message {
 
 // Define model types
 export enum ModelType {
-  GPT_4_5 = 'gpt-4.5-preview-2025-02-27',
-  GPT_4O_MINI_SEARCH = 'gpt-4o-search-preview-2025-03-11',
+  GPT_4_5 = "gpt-4.5-preview-2025-02-27", // Default model
+  GPT_4O = "gpt-4o", // Newer model using Responses API
+  GPT_4O_MINI = "gpt-4o-mini", // Smaller/faster model
+  GPT_4O_MINI_SEARCH = "gpt-4o-mini-search", // Enhanced search
+  CLAUDE_3_7_SONNET = "claude-3-7-sonnet-20250219", // Default Claude model
+  GEMINI_2_0 = "gemini-2.0-flash", // Default Gemini model
   GPT_4_TURBO = 'gpt-4-turbo-preview',
-  CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20250219',
-  GEMINI_2_0 = 'gemini-2.0-flash',
   GPT_4_5_PREVIEW = "GPT_4_5_PREVIEW",
 }
 
@@ -245,7 +247,7 @@ function formatMessagesForGemini(messages: any[]) {
 }
 
 // Web search functionality using OpenAI chat completions API
-async function handleWebSearch(query: string): Promise<{ content: string, citations: Citation[] }> {
+async function handleWebSearch(query: string, signal?: AbortSignal): Promise<{ content: string, citations: Citation[] }> {
   try {
     console.log("Performing web search for:", query);
     
@@ -262,7 +264,7 @@ async function handleWebSearch(query: string): Promise<{ content: string, citati
           content: query
         }
       ]
-    });
+    }, { signal });
     
     console.log("Search response:", JSON.stringify(response, null, 2));
     
@@ -417,18 +419,62 @@ function formatAIResponse(content: string): string {
 }
 
 // Get completion from OpenAI
-async function getOpenAICompletion(messages: any[]): Promise<string> {
+async function getOpenAICompletion(messages: any[], signal?: AbortSignal, modelOverride?: string): Promise<string> {
   try {
     // Add system message and format messages
     const formattedMessages = formatMessagesForOpenAI(addSystemMessage(messages));
     
-    // Get completion from OpenAI
+    // Get the actual model to use (can be overridden)
+    const modelToUse = modelOverride || ModelType.GPT_4_5;
+    
+    // Check if using GPT-4.5 model to apply special prompting
+    const isGpt45 = modelToUse === ModelType.GPT_4_5;
+    
+    if (isGpt45) {
+      console.log("Using GPT-4.5 with improved prompting format");
+      
+      // Extract the last user message for the input
+      const lastUserMessage = formattedMessages
+        .filter(msg => msg.role === 'user')
+        .pop();
+      
+      // Extract developer/system messages for instructions
+      const developerMessages = formattedMessages
+        .filter(msg => msg.role === 'system' || msg.role === 'developer')
+        .map(msg => msg.content)
+        .join("\n\n");
+      
+      try {
+        // Use the new Responses API format for GPT-4.5
+        // Ensure we're handling the right types for the API
+        const inputContent = lastUserMessage?.content || "";
+        const userInput = typeof inputContent === 'string' 
+          ? inputContent 
+          : JSON.stringify(inputContent);
+          
+        const response = await openai.responses.create({
+          model: ModelType.GPT_4O, // Using gpt-4o as fallback for gpt-4.5 documentation
+          instructions: developerMessages || undefined,
+          input: userInput
+        }, { signal });
+        
+        // Format the response content with proper HTML structure
+        const rawContent = response.output_text || "";
+        return formatAIResponse(rawContent);
+      } catch (err) {
+        console.error("Error with new prompting format, falling back to legacy format:", err);
+        // Fall back to legacy format if the new API fails
+      }
+    }
+    
+    // Legacy format (fallback)
+    console.log(`Using legacy format with model: ${modelToUse}`);
     const response = await openai.chat.completions.create({
-      model: ModelType.GPT_4_5,
+      model: modelToUse,
       messages: formattedMessages,
       temperature: 0.7,
       max_tokens: 2000
-    });
+    }, { signal });
     
     // Format the response content with proper HTML structure
     const rawContent = response.choices[0]?.message?.content || "";
@@ -451,19 +497,19 @@ interface AnthropicContentBlock {
 }
 
 // Get completion from Anthropic
-async function getAnthropicCompletion(messages: any[]): Promise<string> {
+async function getAnthropicCompletion(messages: any[], signal?: AbortSignal): Promise<string> {
   try {
     // Add system message and format messages
     const formattedMessages = formatMessagesForAnthropic(addSystemMessage(messages));
     
-    // Get completion from Anthropic
+    // Get completion from Anthropic with abort signal
     const response = await anthropic.messages.create({
       model: ModelType.CLAUDE_3_7_SONNET,
       max_tokens: 2000,
       temperature: 0.7,
       system: formattedMessages.system,
       messages: formattedMessages.messages
-    });
+    }, { signal });
     
     // Extract the raw content
     let rawContent = "";
@@ -503,7 +549,7 @@ async function getAnthropicCompletion(messages: any[]): Promise<string> {
 }
 
 // Get completion from Google Gemini with proper type handling
-async function getGeminiCompletion(messages: any[]): Promise<string> {
+async function getGeminiCompletion(messages: any[], signal?: AbortSignal): Promise<string> {
   try {
     // Add system message and format messages
     const formattedMessages = formatMessagesForGemini(addSystemMessage(messages));
@@ -527,8 +573,34 @@ async function getGeminiCompletion(messages: any[]): Promise<string> {
       inputText = String(lastMessage.parts[0].text || '');
     }
     
-    // Generate content directly
-    const result = await model.generateContent(inputText);
+    // Generate content directly - Google API doesn't directly support AbortSignal
+    // We'll implement a manual timeout if needed
+    let result;
+    if (signal && signal.aborted) {
+      throw new Error('Request aborted');
+    }
+    
+    // Create a promise that can be aborted
+    const generatePromise = model.generateContent(inputText);
+    
+    // Set up signal handling if signal is provided
+    if (signal) {
+      const abortHandler = () => {
+        // When signal aborts, we throw an error to be caught below
+        throw new Error('Request aborted');
+      };
+      
+      // Add abort listener
+      signal.addEventListener('abort', abortHandler, { once: true });
+      
+      // Remove listener when done
+      generatePromise.finally(() => {
+        signal.removeEventListener('abort', abortHandler);
+      });
+    }
+    
+    // Wait for generation
+    result = await generatePromise;
     
     // Handle the response safely
     let rawContent = "I couldn't generate a response. Please try again.";
@@ -551,7 +623,7 @@ async function getGeminiCompletion(messages: any[]): Promise<string> {
 }
 
 // Main function to handle file search
-async function handleFileSearch(query: string): Promise<{ content: string, citations?: any[] }> {
+async function handleFileSearch(query: string, signal?: AbortSignal): Promise<{ content: string, citations?: any[] }> {
   try {
     // Use the specific vector store ID provided
     const vectorStoreId = "vs_67d84dc3a8388191a1d9814cdf8b28d3";
@@ -568,7 +640,7 @@ async function handleFileSearch(query: string): Promise<{ content: string, citat
         vector_store_ids: [vectorStoreId],
       }],
       include: ["file_search_call.results"],
-    });
+    }, { signal });
     
     console.log("File search response status:", response.id ? "Success" : "Failed");
     
@@ -640,7 +712,8 @@ async function handleComputerUse(query: string): Promise<string> {
 export async function getChatCompletion(
   messages: any[],
   model: string = ModelType.GPT_4_5,
-  tools: ToolType[] = []
+  tools: ToolType[] = [],
+  signal?: AbortSignal
 ): Promise<Message> {
   try {
     // Log minimal information to reduce latency
@@ -655,7 +728,7 @@ export async function getChatCompletion(
       // Web Search tool - always use the dedicated search model
       if (tools.includes(ToolType.WEB_SEARCH)) {
         try {
-          const { content, citations } = await handleWebSearch(userInput);
+          const { content, citations } = await handleWebSearch(userInput, signal);
           const formattedContent = formatWebSearchResult(content, citations);
           
           return {
@@ -674,7 +747,7 @@ export async function getChatCompletion(
       // File Search tool - always use gpt-4o-mini regardless of selected model
       if (tools.includes(ToolType.FILE_SEARCH)) {
         try {
-          const { content, citations } = await handleFileSearch(userInput);
+          const { content, citations } = await handleFileSearch(userInput, signal);
           
           return {
             id: Date.now().toString(),
@@ -707,20 +780,19 @@ export async function getChatCompletion(
       }
     }
     
-    // Simplified model selection with fast path for common models
+    // Get content from the appropriate API based on model
     let content;
-    const actualModel = tools.includes(ToolType.WEB_SEARCH) ? ModelType.GPT_4O_MINI_SEARCH : model;
     
     // Fast path for most common models
-    if (actualModel === ModelType.GPT_4_5 || actualModel.startsWith('gpt-4')) {
-      content = await getOpenAICompletion(messages);
-    } else if (actualModel === ModelType.CLAUDE_3_7_SONNET || actualModel.startsWith('claude')) {
-      content = await getAnthropicCompletion(messages);
-    } else if (actualModel === ModelType.GEMINI_2_0 || actualModel.startsWith('gemini')) {
-      content = await getGeminiCompletion(messages);
+    if (model === ModelType.GPT_4_5 || model.startsWith('gpt-4')) {
+      content = await getOpenAICompletion(messages, signal, model);
+    } else if (model === ModelType.CLAUDE_3_7_SONNET || model.startsWith('claude')) {
+      content = await getAnthropicCompletion(messages, signal);
+    } else if (model === ModelType.GEMINI_2_0 || model.startsWith('gemini')) {
+      content = await getGeminiCompletion(messages, signal);
     } else {
       // Default to OpenAI for any unrecognized model
-      content = await getOpenAICompletion(messages);
+      content = await getOpenAICompletion(messages, signal, model);
     }
     
     // Return formatted message

@@ -31,17 +31,26 @@ const MODELS = [
   {
     value: "gpt-4.5-preview-2025-02-27",
     label: "GPT-4.5",
+    icon: <Sparkles className="h-4 w-4 text-yellow-500" />,
+    description: "Latest model with new prompting API support"
+  },
+  {
+    value: "gpt-4o",
+    label: "GPT-4o",
     icon: <Sparkles className="h-4 w-4" />,
+    description: "Balanced model for general use"
   },
   {
     value: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet",
     icon: <Bot className="h-4 w-4" />,
+    description: "Anthropic's advanced language model"
   },
   {
     value: "gemini-2.0-flash",
     label: "Gemini 2.0",
     icon: <Cpu className="h-4 w-4" />,
+    description: "Google's fast AI model"
   },
 ]
 
@@ -80,27 +89,32 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      <PopoverContent className="w-[300px] p-0">
         <Command>
           <CommandInput placeholder="Search model..." />
           <CommandGroup>
             {MODELS.map((model) => (
               <div 
                 key={model.value}
-                className="flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                className="flex flex-col px-2 py-2 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 onClick={() => handleSelectModel(model.value)}
                 data-testid={`model-option-${model.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    value === model.value ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <div className="flex items-center gap-2">
-                  {model.icon}
-                  <span>{model.label}</span>
+                <div className="flex items-center">
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === model.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <div className="flex items-center gap-2">
+                    {model.icon}
+                    <span className="font-medium">{model.label}</span>
+                  </div>
                 </div>
+                {model.description && (
+                  <div className="ml-8 text-xs text-muted-foreground mt-1">{model.description}</div>
+                )}
               </div>
             ))}
           </CommandGroup>
