@@ -35,12 +35,6 @@ const MODELS = [
     description: "Latest model with new prompting API support"
   },
   {
-    value: "gpt-4o",
-    label: "GPT-4o",
-    icon: <Sparkles className="h-4 w-4" />,
-    description: "Balanced model for general use"
-  },
-  {
     value: "claude-3-7-sonnet-20250219",
     label: "Claude 3.7 Sonnet",
     icon: <Bot className="h-4 w-4" />,
