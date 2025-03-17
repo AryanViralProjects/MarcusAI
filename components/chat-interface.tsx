@@ -159,9 +159,9 @@ export function ChatInterface({
   // Handle tools change with proper type safety
   const handleToolsChange = useCallback((toolIds: ToolType[]) => {
     console.log(`ChatInterface - Tools change handler called with: ${toolIds}`);
-    // Filter out any FILE_SEARCH or COMPUTER_USE tools as they're coming soon
+    // Only filter out COMPUTER_USE as it's coming soon
     const availableTools = toolIds.filter(
-      tool => tool !== ToolType.FILE_SEARCH && tool !== ToolType.COMPUTER_USE
+      tool => tool !== ToolType.COMPUTER_USE
     );
     setSelectedTools(availableTools);
   }, []);

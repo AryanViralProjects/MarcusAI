@@ -44,7 +44,9 @@ model User {
   password      String?
   accounts      Account[]
   conversations Conversation[]
+  files         File[]
   sessions      Session[]
+  vectorStores  VectorStore[]
 }
 
 model VerificationToken {
@@ -82,4 +84,42 @@ model Citation {
   url       String
   messageId String
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model File {
+  id               String            @id @default(cuid())
+  name             String
+  url              String
+  type             String
+  size             Int
+  openaiFileId     String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vectorStoreFiles VectorStoreFile[]
+}
+
+model VectorStore {
+  id                  String            @id @default(cuid())
+  name                String
+  openaiVectorStoreId String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files               VectorStoreFile[]
+}
+
+model VectorStoreFile {
+  id            String      @id @default(cuid())
+  fileId        String
+  vectorStoreId String
+  status        String      @default("pending")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  file          File        @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  vectorStore   VectorStore @relation(fields: [vectorStoreId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, vectorStoreId])
 }
