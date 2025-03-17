@@ -31,7 +31,7 @@ export enum ModelType {
   GPT_4_5 = "gpt-4.5-preview-2025-02-27", // Default model
   GPT_4O = "gpt-4o", // Newer model using Responses API
   GPT_4O_MINI = "gpt-4o-mini", // Smaller/faster model
-  GPT_4O_MINI_SEARCH = "gpt-4o-mini-search", // Enhanced search
+  GPT_4O_MINI_SEARCH = "gpt-4o-mini-search-preview-2025-03-11", // Enhanced search
   CLAUDE_3_7_SONNET = "claude-3-7-sonnet-20250219", // Default Claude model
   GEMINI_2_0 = "gemini-2.0-flash", // Default Gemini model
   GPT_4_TURBO = 'gpt-4-turbo-preview',
