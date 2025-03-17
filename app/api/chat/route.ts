@@ -40,30 +40,23 @@ export async function POST(req: NextRequest) {
 
     console.log('Chat API - Latest user message:', latestUserMessage.content);
 
-    // Process attachments if present
-    let enhancedUserMessage = latestUserMessage.content;
-    if (latestUserMessage.attachments && latestUserMessage.attachments.length > 0) {
-      // Add attachment information to the message content
-      const attachmentDescriptions = latestUserMessage.attachments.map((attachment: Attachment) => {
-        if (attachment.type === 'image') {
-          return `[Image: ${attachment.url}]`;
-        } else {
-          return `[Document: ${attachment.name} - ${attachment.url}]`;
-        }
-      });
-      
-      enhancedUserMessage = `${enhancedUserMessage}\n\nAttachments:\n${attachmentDescriptions.join('\n')}`;
-    }
-
-    // Get previous messages for context (excluding system messages)
+    // Get all messages including attachments for the API
     const chatHistory = messages
       .filter(m => m.role !== 'system')
       .map(m => {
-        // Create a clean copy of the message without attachments for the API
-        return {
+        // Keep the original structure including attachments
+        const mappedMessage: any = {
           role: m.role,
           content: m.content
-        } as OpenAiMessage;
+        };
+
+        // Include attachments for image processing by vision models
+        if (m.attachments && m.attachments.length > 0) {
+          mappedMessage.attachments = m.attachments;
+          console.log(`Processing message with ${m.attachments.length} attachments`);
+        }
+
+        return mappedMessage;
       });
 
     console.log('Chat API - Model:', model);
@@ -114,10 +107,21 @@ export async function POST(req: NextRequest) {
         }
         
         if (activeConversationId) {
+          // Extract image URL from attachments for database storage
+          let imageUrl: string | undefined;
+          if (latestUserMessage.attachments && latestUserMessage.attachments.length > 0) {
+            const firstImageAttachment = latestUserMessage.attachments.find(att => att.type === 'image');
+            if (firstImageAttachment) {
+              imageUrl = firstImageAttachment.url;
+            }
+          }
+          
           // Save the user message
           await addMessageToConversation(activeConversationId, {
             role: latestUserMessage.role,
             content: latestUserMessage.content,
+            // Add the first image URL if there are any image attachments
+            imageUrl,
             // Handle citations if present
             citations: latestUserMessage.citations?.map(citation => ({
               title: citation.title,

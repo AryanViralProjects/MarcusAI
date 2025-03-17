@@ -149,6 +149,7 @@ function formatMessagesForOpenAI(messages: any[]): ChatCompletionMessageParam[] 
         
         // Add image URLs
         imageAttachments.forEach((att: any) => {
+          console.log(`Adding image URL to message: ${att.url}`);
           content.push({
             type: 'image_url',
             image_url: {
@@ -586,8 +587,37 @@ export async function getChatCompletion(
   tools: ToolType[] = []
 ): Promise<Message> {
   try {
-    console.log("getChatCompletion called with model:", model);
-    console.log("getChatCompletion called with tools:", tools);
+    console.log(`getChatCompletion called with model: ${model}`);
+    console.log(`getChatCompletion called with tools: ${tools}`);
+    
+    // Check if there are any attachments to process
+    const hasAttachments = messages.some(msg => 
+      msg.attachments && msg.attachments.length > 0 && 
+      msg.attachments.some((att: any) => att.type === 'image')
+    );
+    
+    if (hasAttachments) {
+      console.log('Processing message with image attachments');
+      // Get the latest user message and log its content for debugging
+      const userMessages = messages.filter(msg => msg.role === 'user');
+      if (userMessages.length > 0) {
+        const latestUserMessage = userMessages[userMessages.length - 1];
+        console.log(`getChatCompletion - User input: ${latestUserMessage.content}`);
+        if (latestUserMessage.attachments) {
+          console.log(`getChatCompletion - User has ${latestUserMessage.attachments.length} attachments`);
+          latestUserMessage.attachments.forEach((att: any, index: number) => {
+            console.log(`Attachment ${index + 1}: ${att.type} - ${att.url}`);
+          });
+        }
+      }
+    } else {
+      // Just log the latest user message content
+      const userMessages = messages.filter(msg => msg.role === 'user');
+      if (userMessages.length > 0) {
+        const latestUserMessage = userMessages[userMessages.length - 1];
+        console.log(`getChatCompletion - User input: ${latestUserMessage.content}`);
+      }
+    }
     
     // Extract the last user message
     const lastUserMessage = [...messages].reverse().find(msg => msg.role === 'user');

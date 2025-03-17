@@ -1,95 +1,101 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { UploadThingError } from "uploadthing/server";
  
 const f = createUploadthing();
 
-// Get the current user from the session
-const auth = async () => {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user || !session.user.id) {
-    throw new Error("Unauthorized");
-  }
-  return { userId: session.user.id };
-};
- 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
   // Define as many FileRoutes as you like, each with a unique route key
-  imageUploader: f({ image: { maxFileSize: "4MB" } })
+  imageUploader: f({
+    image: {
+      maxFileSize: "4MB",
+      maxFileCount: 1,
+    }
+  })
     // Set permissions and file types for this FileRoute
-    .middleware(async () => {
-      const { userId } = await auth();
-      return { userId };
+    .middleware(async ({ req }) => {
+      // Get session
+      try {
+        const session = await getServerSession(authOptions);
+        
+        // Always allow uploads, even for anonymous users
+        const userId = session?.user?.id || "anonymous";
+        console.log(`User ${userId} is uploading a file`);
+        
+        // Return the userId
+        return { userId };
+      } catch (error) {
+        console.error("Auth error in UploadThing:", error);
+        // Still allow anonymous uploads
+        return { userId: "anonymous" };
+      }
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // Save file to database
-      await db.file.create({
-        data: {
-          name: file.name,
-          url: file.url,
-          type: file.type,
-          size: file.size,
-          userId: metadata.userId,
-        },
-      });
+      // This code RUNS ON YOUR SERVER after upload
+      console.log("File uploaded:", file.name, "by user:", metadata.userId);
       
-      return { uploadedBy: metadata.userId };
+      // Return the file URL to the client
+      return { url: file.url };
     }),
   
   // Document uploader for PDFs and other documents
   documentUploader: f({ 
-    pdf: { maxFileSize: "16MB" },
-    text: { maxFileSize: "2MB" },
-    image: { maxFileSize: "8MB" },
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    text: { maxFileSize: "2MB", maxFileCount: 1 },
+    image: { maxFileSize: "8MB", maxFileCount: 1 },
   })
-    .middleware(async () => {
-      const { userId } = await auth();
-      return { userId };
+    .middleware(async ({ req }) => {
+      // Get session
+      try {
+        const session = await getServerSession(authOptions);
+        
+        // Always allow uploads, even for anonymous users
+        const userId = session?.user?.id || "anonymous";
+        console.log(`User ${userId} is uploading a document`);
+        
+        // Return the userId
+        return { userId };
+      } catch (error) {
+        console.error("Auth error in UploadThing:", error);
+        // Still allow anonymous uploads
+        return { userId: "anonymous" };
+      }
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // Save file to database
-      await db.file.create({
-        data: {
-          name: file.name,
-          url: file.url,
-          type: file.type,
-          size: file.size,
-          userId: metadata.userId,
-        },
-      });
-      
-      return { uploadedBy: metadata.userId };
+      console.log("Document uploaded:", file.name, "by user:", metadata.userId);
+      return { url: file.url };
     }),
     
   // File search document uploader - specifically for documents to be used with file search
   fileSearchUploader: f({ 
-    pdf: { maxFileSize: "16MB" },
-    text: { maxFileSize: "2MB" },
-    image: { maxFileSize: "8MB" },
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    text: { maxFileSize: "2MB", maxFileCount: 1 },
+    image: { maxFileSize: "8MB", maxFileCount: 1 },
   })
-    .middleware(async () => {
-      const { userId } = await auth();
-      return { userId };
+    .middleware(async ({ req }) => {
+      // Get session
+      try {
+        const session = await getServerSession(authOptions);
+        
+        // Always allow uploads, even for anonymous users
+        const userId = session?.user?.id || "anonymous";
+        console.log(`User ${userId} is uploading a document for search`);
+        
+        // Return the userId
+        return { userId };
+      } catch (error) {
+        console.error("Auth error in UploadThing:", error);
+        // Still allow anonymous uploads
+        return { userId: "anonymous" };
+      }
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // Save file to database
-      const newFile = await db.file.create({
-        data: {
-          name: file.name,
-          url: file.url,
-          type: file.type,
-          size: file.size,
-          userId: metadata.userId,
-        },
-      });
-      
+      console.log("File search document uploaded:", file.name, "by user:", metadata.userId);
       return { 
-        uploadedBy: metadata.userId,
-        fileId: newFile.id,
-        fileName: file.name,
         fileUrl: file.url,
+        fileName: file.name,
       };
     }),
 } satisfies FileRouter;

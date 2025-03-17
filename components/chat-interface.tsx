@@ -10,7 +10,7 @@ import type { Message, Conversation, Attachment } from "@/types/chat"
 import { ToolType, sendMessage as apiSendMessage, Message as ApiMessage, ModelType } from "@/lib/openai"
 import { saveConversations, loadConversations } from "@/lib/chat-service"
 import { loadUserPreferences } from "@/lib/personalization"
-import { UploadButton } from "@/components/upload-button"
+import { CustomUploadButton } from "@/components/upload-button"
 import ReactMarkdown from "react-markdown"
 import { SuggestionCards } from "@/components/suggestion-cards"
 import { ModelSelector } from "@/components/model-selector"
@@ -436,17 +436,31 @@ export function ChatInterface({
     );
   };
 
-  // Render message attachments
-  const renderMessageAttachments = (messageAttachments?: Attachment[]) => {
-    if (!messageAttachments || messageAttachments.length === 0) return null;
+  // Function to render attachments for a message
+  const renderMessageAttachments = (messageAttachments?: Attachment[], imageUrl?: string) => {
+    // If there's an imageUrl but no attachments, create a virtual attachment
+    if (imageUrl && (!messageAttachments || messageAttachments.length === 0)) {
+      messageAttachments = [
+        {
+          id: `image-${Date.now()}`,
+          url: imageUrl,
+          type: 'image',
+          name: 'Image'
+        }
+      ];
+    }
     
+    if (!messageAttachments || messageAttachments.length === 0) {
+      return null;
+    }
+
     return (
       <div className="flex flex-wrap gap-2 mt-2">
         {messageAttachments.map((attachment) => (
-          <div key={attachment.id} className="relative">
+          <div key={attachment.id} className="relative max-w-[300px]">
             {attachment.type === 'image' ? (
               <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="block">
-                <div className="max-w-xs rounded-md overflow-hidden border">
+                <div className="border rounded-md overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <img 
                     src={attachment.url} 
                     alt="Attachment" 
@@ -686,10 +700,20 @@ export function ChatInterface({
         ) : (
           <div className="p-4 space-y-4">
             {currentConversation.messages.map((message) => (
-              <div key={message.id} className="flex items-start gap-3">
+              <div
+                key={message.id}
+                className={cn("flex items-start gap-3", {
+                  "self-end": message.role === "user",
+                })}
+              >
                 <Avatar className="h-8 w-8 mt-1">
                   {message.role === "user" ? (
-                    <AvatarFallback className="bg-muted">U</AvatarFallback>
+                    <>
+                      <AvatarImage src={session?.user?.image || undefined} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {session?.user?.name?.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </>
                   ) : (
                     <>
                       <AvatarImage src="/marcus-avatar.png" />
@@ -740,7 +764,8 @@ export function ChatInterface({
                       <p>{message.content}</p>
                     )}
                   </div>
-                  {renderMessageAttachments(message.attachments)}
+                  {/* Pass both attachments and imageUrl to renderMessageAttachments */}
+                  {renderMessageAttachments(message.attachments, message.imageUrl)}
                 </div>
               </div>
             ))}
@@ -789,7 +814,7 @@ export function ChatInterface({
               className="min-h-[60px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-3 px-4"
             />
             <div className="flex p-2 gap-1">
-              <UploadButton onUploadComplete={handleUploadComplete} />
+              <CustomUploadButton onUploadComplete={handleUploadComplete} />
               <Button 
                 size="icon" 
                 variant="ghost"

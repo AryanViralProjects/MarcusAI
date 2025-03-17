@@ -21,6 +21,7 @@ export interface Message {
   timestamp: string
   attachments?: Attachment[]
   citations?: Citation[] // Add citations for web search results
+  imageUrl?: string // For backward compatibility with DB schema
 }
 
 export interface Conversation {
