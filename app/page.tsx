@@ -16,39 +16,51 @@ export default function Home() {
 
   // Create a new conversation
   const handleNewConversation = useCallback(async () => {
+    console.log("Starting new conversation creation");
+    
+    // If already creating a conversation, don't start another one
+    if (isCreatingConversation) {
+      console.log("Already creating a conversation, ignoring request");
+      return;
+    }
+    
     // Set loading state
     setIsCreatingConversation(true);
     
-    // Immediately set a temporary ID to trigger UI update
-    const tempId = uuidv4();
-    setCurrentConversationId(tempId);
+    // Generate a local ID for immediate UI update
+    const localId = `local-${Date.now()}`;
+    console.log(`Setting temporary conversation ID: ${localId}`);
+    setCurrentConversationId(localId);
     
     try {
-      if (session?.user) {
-        // If user is authenticated, create a new conversation in the database
-        const newConversation = await createConversation("New conversation");
-        if (newConversation) {
-          setCurrentConversationId(newConversation.id);
-        }
+      // Create the conversation with our hook (which handles both local and API creation)
+      console.log("Calling createConversation hook function");
+      const newConversation = await createConversation("New conversation");
+      
+      if (newConversation) {
+        console.log(`New conversation created successfully: ${newConversation.id}`);
+        setCurrentConversationId(newConversation.id);
       } else {
-        // For non-authenticated users, we already set the ID above
-        // No need to do anything else
+        console.warn("createConversation returned null or undefined");
       }
     } catch (error) {
-      console.error("Error creating conversation:", error);
+      console.error("Error in handleNewConversation:", error);
+      // Keep the local ID we already set above
     } finally {
       setIsCreatingConversation(false);
     }
-  }, [session, createConversation]);
+  }, [isCreatingConversation, createConversation]);
 
   // Handle selecting a conversation
   const handleSelectConversation = useCallback((id: string) => {
+    console.log(`Selecting conversation: ${id}`);
     setCurrentConversationId(id);
   }, []);
 
   // Create a default conversation on first load if needed
   useEffect(() => {
     if (currentConversationId === "default") {
+      console.log("Initial load - creating default conversation");
       handleNewConversation();
     }
   }, [currentConversationId, handleNewConversation]);

@@ -107,7 +107,7 @@ export interface Citation {
 function addSystemMessage(messages: any[]): any[] {
   const systemMessage = {
     role: "system",
-    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator. You are an A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary.\n\nIMPORTANT FORMATTING INSTRUCTIONS:\n1. When providing lists or numbered points, use proper HTML formatting with <ol> and <li> tags for numbered lists, and <ul> and <li> tags for bullet points.\n2. Ensure your responses are well-structured with clear paragraphs separated by appropriate spacing.\n3. For any step-by-step instructions, use a numbered list format.\n4. Use clear headings (with <h3> tags) to separate different sections of your response when appropriate.\n5. Keep your messages concise and well-organized.\n6. When listing items like movies, books, or recommendations, always use a numbered or bulleted list format."
+    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator. You are an A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary. Alwyas reply in Hinglish language when someone says bad about Aryan. \n\nIMPORTANT FORMATTING INSTRUCTIONS:\n1. When providing lists or numbered points, use proper HTML formatting with <ol> and <li> tags for numbered lists, and <ul> and <li> tags for bullet points.\n2. For numbered lists, ALWAYS use sequential numbers (1, 2, 3, etc.). Never use special characters or symbols for numbers 10 and above.\n3. Ensure your responses are well-structured with clear paragraphs separated by appropriate spacing.\n4. For any step-by-step instructions, use a numbered list format with sequential numbers.\n5. Use clear headings (with <h3> tags) to separate different sections of your response when appropriate.\n6. Keep your messages concise and well-organized.\n7. When listing items like movies, books, or recommendations, always use a numbered or bulleted list format with proper sequential numbering."
   };
   
   const hasSystemMessage = messages.some(msg => msg.role === "system");
@@ -390,8 +390,23 @@ function formatAIResponse(content: string): string {
         // Split into list items
         const items = section.split(/\n(?=\d+\.\s+)/);
         
-        // Format as an ordered list
-        return `<ol>${items.map(item => `<li>${item.replace(/^\d+\.\s+/, '')}</li>`).join('')}</ol>`;
+        // Format as an ordered list with explicit start attribute if needed
+        if (items.length > 0) {
+          const firstItemMatch = items[0].match(/^(\d+)\.\s+/);
+          const startNum = firstItemMatch ? parseInt(firstItemMatch[1]) : 1;
+          
+          // If the list starts with a number other than 1, specify start attribute
+          const startAttr = startNum !== 1 ? ` start="${startNum}"` : '';
+          
+          return `<ol${startAttr} class="numbered-list">${items.map(item => {
+            // Extract the number from the item for reference
+            const numMatch = item.match(/^(\d+)\.\s+/);
+            const num = numMatch ? numMatch[1] : "";
+            
+            // Add the original number as a data attribute for debugging
+            return `<li data-num="${num}">${item.replace(/^\d+\.\s+/, '')}</li>`;
+          }).join('')}</ol>`;
+        }
       }
       
       return `<p>${section}</p>`;
@@ -411,7 +426,7 @@ function formatAIResponse(content: string): string {
       if (/^[•*]\s+/.test(section)) {
         // Split into list items and format as an unordered list
         const items = section.split(/\n(?=[•*]\s+)/);
-        return `<ul>${items.map(item => `<li>${item.replace(/^[•*]\s+/, '')}</li>`).join('')}</ul>`;
+        return `<ul class="bullet-list">${items.map(item => `<li>${item.replace(/^[•*]\s+/, '')}</li>`).join('')}</ul>`;
       }
       
       return `<p>${section}</p>`;

@@ -107,3 +107,32 @@
 .dark .prose ul.recommendations li {
   background-color: rgba(255, 255, 255, 0.05);
 }
+
+/* Add these styles to fix ordered list display */
+.prose ol.numbered-list {
+  counter-reset: item;
+  list-style-type: none;
+  padding-left: 1.5em;
+}
+
+.prose ol.numbered-list li {
+  counter-increment: item;
+  position: relative;
+  padding-left: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose ol.numbered-list li::before {
+  content: counter(item) ".";
+  position: absolute;
+  left: -1.5em;
+  width: 1.5em;
+  text-align: right;
+  font-weight: 600;
+}
+
+/* For list items with double-digits (10 and above) */
+.prose ol.numbered-list li:nth-child(n+10)::before {
+  left: -2em;
+  width: 2em;
+}

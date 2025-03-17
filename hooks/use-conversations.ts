@@ -160,7 +160,7 @@ export function useConversations() {
     }
     
     try {
-      console.log('Creating conversation via API');
+      console.log(`Creating conversation via API with title: "${title}"`);
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: {
@@ -170,17 +170,20 @@ export function useConversations() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create conversation');
+        const responseText = await response.text();
+        console.error(`Failed to create conversation. Status: ${response.status}. Response:`, responseText);
+        throw new Error(`Failed to create conversation: ${response.status} ${responseText}`);
       }
       
       const newConversation = await response.json();
+      console.log('Successfully created conversation:', newConversation.id);
       setConversations(prev => [newConversation, ...prev]);
       return newConversation;
     } catch (err: any) {
       console.error('Error creating conversation:', err);
-      setError(err.message || 'Failed to create conversation');
       
-      // Fall back to local conversation creation on error
+      // If API fails, gracefully fall back to local conversation creation
+      console.log('Falling back to local conversation due to API error');
       const localConversation = createLocalConversation(title);
       
       setConversations(prev => {

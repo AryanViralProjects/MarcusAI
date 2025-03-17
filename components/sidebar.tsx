@@ -33,9 +33,13 @@ export function Sidebar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const router = useRouter()
 
-  // Function to handle redirection to home page
-  const handleHomeRedirect = () => {
-    router.push('/')
+  // Function to handle logo click - both redirect to home and create a new conversation
+  const handleLogoClick = () => {
+    router.push('/');
+    // Create a new conversation after a small delay to ensure routing completes
+    setTimeout(() => {
+      onNewConversation();
+    }, 100);
   }
 
   return (
@@ -50,7 +54,7 @@ export function Sidebar({
       )}>
         {/* Logo and navigation */}
         <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={handleHomeRedirect}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-400">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
@@ -63,10 +67,14 @@ export function Sidebar({
 
         {/* Navigation links */}
         <div className="flex items-center gap-4 px-4 py-2 border-b">
-          <Link href="/" className="flex items-center gap-2 text-sm">
+          <Button 
+            variant="ghost" 
+            className="flex items-center gap-2 text-sm h-8 px-2 w-full justify-start"
+            onClick={handleLogoClick}
+          >
             <Home className="h-4 w-4" />
             <span>Home</span>
-          </Link>
+          </Button>
         </div>
 
         {/* Conversation list */}
