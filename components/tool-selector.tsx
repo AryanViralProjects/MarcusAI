@@ -26,8 +26,7 @@ const TOOLS: ToolOption[] = [
     id: ToolType.FILE_SEARCH,
     name: "File Search",
     icon: <FileSearch className="h-4 w-4" />,
-    description: "Search through your files",
-    comingSoon: true
+    description: "Search through your files"
   },
   {
     id: ToolType.COMPUTER_USE,

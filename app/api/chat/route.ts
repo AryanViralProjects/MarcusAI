@@ -14,6 +14,13 @@ export async function POST(req: NextRequest) {
     
     const { messages, preferences = defaultPreferences, model = ModelType.GPT_4_5, tools = [], conversationId } = await req.json();
 
+    console.log('Chat API - Request body:', { 
+      messageCount: messages?.length, 
+      model, 
+      toolsReceived: tools,
+      conversationId: conversationId || 'new'
+    });
+
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Messages are required and must be an array' },
@@ -30,6 +37,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log('Chat API - Latest user message:', latestUserMessage.content);
 
     // Process attachments if present
     let enhancedUserMessage = latestUserMessage.content;
@@ -58,16 +67,27 @@ export async function POST(req: NextRequest) {
       });
 
     console.log('Chat API - Model:', model);
-    console.log('Chat API - Tools:', tools);
+    console.log('Chat API - Tools before filtering:', tools);
+
+    // Check if the latest user message contains "performance marketing"
+    if (latestUserMessage.content.toLowerCase().includes('performance marketing') && 
+        !tools.includes(ToolType.FILE_SEARCH)) {
+      console.log('Chat API - Detected "performance marketing", adding FILE_SEARCH tool');
+      tools.push(ToolType.FILE_SEARCH);
+    }
 
     // Generate response from OpenAI with user preferences
+    const filteredTools = (tools as ToolType[]).filter(
+      tool => tool !== ToolType.COMPUTER_USE
+    );
+    
+    console.log('Chat API - Tools after filtering:', filteredTools);
+
     const response = await getChatCompletion(
       chatHistory, 
       model as ModelType,
-      // Filter out any FILE_SEARCH or COMPUTER_USE tools as they're coming soon
-      (tools as ToolType[]).filter(
-        tool => tool !== ToolType.FILE_SEARCH && tool !== ToolType.COMPUTER_USE
-      )
+      // Only filter out COMPUTER_USE tool as it's coming soon
+      filteredTools
     );
 
     // Check if user is authenticated and save the conversation if they are

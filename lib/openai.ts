@@ -494,9 +494,66 @@ async function getGeminiCompletion(messages: any[]): Promise<string> {
 }
 
 // Main function to handle file search
-async function handleFileSearch(query: string): Promise<string> {
-  // This is a placeholder - real implementation would depend on your file search setup
-  return `File search results for "${query}" would appear here.`;
+async function handleFileSearch(query: string): Promise<{ content: string, citations?: any[] }> {
+  try {
+    // Use the specific vector store ID provided
+    const vectorStoreId = "vs_67d84dc3a8388191a1d9814cdf8b28d3";
+    
+    console.log("Performing file search with vector store ID:", vectorStoreId);
+    console.log("File search query:", query);
+    
+    // Use the Responses API with file search tool as per documentation
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini", // Always use gpt-4o-mini for file search
+      input: query,
+      tools: [{
+        type: "file_search",
+        vector_store_ids: [vectorStoreId],
+      }],
+      include: ["file_search_call.results"],
+    });
+    
+    console.log("File search response status:", response.id ? "Success" : "Failed");
+    
+    // Extract the message content and citations
+    const messageItem = response.output.find(item => item.type === "message");
+    if (!messageItem) {
+      console.error("No message item found in file search response");
+      return { content: "No response found from file search." };
+    }
+    
+    // Get the text content
+    const textContent = messageItem.content?.find(item => item.type === "output_text");
+    if (!textContent) {
+      console.error("No text content found in file search response");
+      return { content: "No text content found in the response." };
+    }
+    
+    // Log the number of citations found
+    const citationsCount = textContent.annotations?.length || 0;
+    console.log(`File search found ${citationsCount} citations`);
+    
+    // Format citations if they exist
+    const citations = textContent.annotations?.map(annotation => {
+      if (annotation.type === "file_citation") {
+        // Use file_id as fallback since filename might not be available in the type definition
+        return {
+          title: `File: ${annotation.file_id.split('-').pop()}`,
+          url: `file://${annotation.file_id}`,
+        };
+      }
+      return null;
+    }).filter(Boolean) || [];
+    
+    return {
+      content: textContent.text,
+      citations: citations.length > 0 ? citations : undefined,
+    };
+  } catch (error) {
+    console.error("Error in handleFileSearch:", error);
+    console.error("Error details:", error instanceof Error ? error.message : String(error));
+    return { content: "Sorry, I encountered an error while searching through files." };
+  }
 }
 
 // Main function to handle computer use
@@ -518,11 +575,15 @@ export async function getChatCompletion(
     // Extract the last user message
     const lastUserMessage = [...messages].reverse().find(msg => msg.role === 'user');
     const userInput = lastUserMessage?.content || "";
+    console.log("getChatCompletion - User input:", userInput);
     
     // Handle tools if selected
     if (tools.length > 0) {
+      console.log("getChatCompletion - Processing tools:", tools);
+      
       // Web Search tool - always use the dedicated search model
       if (tools.includes(ToolType.WEB_SEARCH)) {
+        console.log("getChatCompletion - Using WEB_SEARCH tool");
         try {
           const { content, citations } = await handleWebSearch(userInput);
           const formattedContent = formatWebSearchResult(content, citations);
@@ -540,16 +601,19 @@ export async function getChatCompletion(
         }
       }
       
-      // File Search tool
+      // File Search tool - always use gpt-4o-mini regardless of selected model
       if (tools.includes(ToolType.FILE_SEARCH)) {
+        console.log("getChatCompletion - Using FILE_SEARCH tool");
         try {
-          const content = await handleFileSearch(userInput);
+          const { content, citations } = await handleFileSearch(userInput);
+          console.log("getChatCompletion - File search result:", { contentLength: content.length, citationsCount: citations?.length || 0 });
           
           return {
             id: Date.now().toString(),
             role: "assistant",
             content: content,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            citations: citations
           };
         } catch (error) {
           console.error("File search error:", error);
@@ -630,10 +694,30 @@ export async function sendMessage(
 ): Promise<Message> {
   try {
     console.log("Sending message with model:", selectedModel);
-    console.log("Selected tools:", selectedTools);
+    console.log("Selected tools before check:", selectedTools);
+    
+    // Extract the last user message
+    const lastUserMessage = [...messages].reverse().find(msg => msg.role === 'user');
+    const userInput = lastUserMessage?.content || "";
+    
+    console.log("User input:", userInput);
+    console.log("Contains 'performance marketing':", userInput.toLowerCase().includes('performance marketing'));
+    
+    // Create a new array to avoid modifying the original
+    let updatedTools = [...selectedTools];
+    
+    // Check if the user query contains "performance marketing" (case insensitive)
+    // If it does, automatically add the FILE_SEARCH tool
+    if (userInput.toLowerCase().includes('performance marketing') && !updatedTools.includes(ToolType.FILE_SEARCH)) {
+      console.log("Detected 'performance marketing' in query, automatically activating file search tool");
+      updatedTools.push(ToolType.FILE_SEARCH);
+    }
+    
+    console.log("Selected tools after check:", updatedTools);
     
     // Convert tools to enum
-    const tools = selectedTools.map(tool => tool as ToolType);
+    const tools = updatedTools.map(tool => tool as ToolType);
+    console.log("Final tools array:", tools);
     
     // Get completion
     return await getChatCompletion(messages, selectedModel, tools);

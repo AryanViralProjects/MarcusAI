@@ -1,6 +1,6 @@
 # Marcus AI Project Summary
 
-**Date:** March 16, 2025
+**Date:** March 17, 2025
 
 ## Project Overview
 
@@ -15,8 +15,8 @@ Marcus AI is an advanced conversational AI assistant created by Aryan Bhargav. T
 
 ### 2. Specialized Tools
 - **Web Search:** Retrieves real-time information from the internet with proper citations
-- **File Search:** Searches through user files for relevant information
-- **Computer Use:** Performs actions on the user's computer (newly implemented)
+- **File Search:** Searches through files in a vector store for relevant information, automatically activated for "performance marketing" queries
+- **Computer Use:** Performs actions on the user's computer (coming soon)
 
 ### 3. User Authentication (New)
 - **Optional Authentication:** Users can access the application without mandatory login
@@ -31,15 +31,16 @@ The project is built using:
 - **Next.js** for the frontend and backend framework
 - **TypeScript** for type-safe code
 - **React** for the UI components
-- **NextAuth.js** for authentication (newly implemented)
-- **Prisma** for database ORM (newly configured)
+- **NextAuth.js** for authentication
+- **Prisma** for database ORM
 
 ### API Integrations
 
 #### OpenAI API
 - Used for GPT-4.5 model responses
 - Implements web search functionality using `gpt-4o-search-preview-2025-03-11`
-- Implements computer use functionality using `computer-use-preview-2025-03-11`
+- Implements file search functionality using `gpt-4o-mini` with vector store ID `vs_67d84dc3a8388191a1d9814cdf8b28d3`
+- Implements computer use functionality using `computer-use-preview-2025-03-11` (coming soon)
 
 #### Anthropic API
 - Used for Claude 3.7 Sonnet model responses
@@ -58,20 +59,28 @@ The project is built using:
 #### Tool Selector
 - Enables users to activate specialized tools (Web Search, File Search, Computer Use)
 - Tools can be toggled on/off as needed
+- File Search tool automatically activates for queries containing "performance marketing"
 
 #### Chat Interface
 - Displays conversation history with proper formatting
 - Supports markdown rendering
-- Handles citations from web search results
+- Handles citations from web search and file search results
 
-#### Authentication Components (New)
+#### Authentication Components
 - **SidebarAuth:** Displays sign-in option or user account based on auth state
 - **Sign-in Form:** Allows login via credentials or OAuth providers
 - **Sign-up Form:** Enables new user registration with validation
 
 ## Recent Implementations
 
-### 1. Authentication System
+### 1. File Search Functionality
+- Implemented file search using OpenAI's vector store capabilities
+- Set up with vector store ID `vs_67d84dc3a8388191a1d9814cdf8b28d3` for retrieving information
+- Configured to automatically activate when users mention "performance marketing"
+- Uses `gpt-4o-mini` model specifically for file search queries
+- Added citation support for file search results
+
+### 2. Authentication System
 - Integrated NextAuth.js for user authentication
 - Implemented optional authentication flow allowing non-authenticated users to access the main application
 - Added multiple authentication providers (Email/Password, Google, GitHub)
@@ -79,13 +88,13 @@ The project is built using:
 - Updated middleware to protect specific routes while keeping the main app accessible
 - Added sign-in and sign-up pages with a clean, consistent UI
 
-### 2. UI Improvements
+### 3. UI Improvements
 - Switched to dark theme as the default with proper contrast
 - Updated button styling to use white primary color in dark mode
 - Improved upload button design and modal interface
 - Enhanced overall visual consistency across components
 
-### 3. API Security & Model Integration
+### 4. API Security & Model Integration
 - Fixed Anthropic Claude API integration to properly handle system messages
 - Updated model references to use the latest versions
 - Continued using environment variables for API keys security
@@ -99,11 +108,11 @@ The project is built using:
   - Implements tool functionality (Web Search, File Search, Computer Use)
   - Manages model selection and API requests
 
-- **`/lib/auth.ts`**: Authentication configuration (new)
+- **`/lib/auth.ts`**: Authentication configuration
   - Configures NextAuth with providers and callbacks
   - Manages credential authentication with password hashing
 
-- **`/components/auth/`**: Authentication UI components (new)
+- **`/components/auth/`**: Authentication UI components
   - Sign-in and sign-up forms
   - OAuth provider buttons
   - User account menu
@@ -131,11 +140,10 @@ The project is built using:
 - Associate messages with specific users and conversations
 - Implement conversation retrieval and history browsing
 
-#### 3. 
+#### 3. Conversation UI
 - Create conversation list sidebar
 - Add ability to name and organize conversations
 - Provide options to delete or export conversations
-
 
 ### Technical Debt to Address
 
@@ -152,4 +160,4 @@ The project is built using:
 
 ---
 
-*This document serves as a snapshot of the Marcus AI project as of March 16, 2025. It will be updated as the project evolves.*
+*This document serves as a snapshot of the Marcus AI project as of March 17, 2025. It will be updated as the project evolves.*
