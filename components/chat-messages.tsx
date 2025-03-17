@@ -6,7 +6,8 @@ import { AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Copy, ThumbsUp, ThumbsDown, MoreVertical } from "lucide-react"
 import { formatDistanceToNow } from "@/lib/utils"
-import { Sparkles } from "lucide-react"
+import { Sparkles, User } from "lucide-react"
+import { useState } from "react"
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -14,79 +15,80 @@ interface ChatMessagesProps {
 }
 
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
-  return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      {messages.map((message) => (
-        <div key={message.id} className="flex gap-4 items-start">
-          <Avatar
-            className={message.role === "assistant" ? "bg-gradient-to-br from-blue-600 to-blue-400" : "bg-secondary"}
-          >
-            {message.role === "assistant" ? (
-              <>
-                <AvatarFallback>
-                  <Sparkles className="h-4 w-4 text-white" />
-                </AvatarFallback>
-                <AvatarImage src="/placeholder.svg?height=40&width=40" />
-              </>
-            ) : (
-              <>
-                <AvatarFallback>U</AvatarFallback>
-                <AvatarImage src="/placeholder.svg?height=40&width=40" />
-              </>
-            )}
-          </Avatar>
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null)
 
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{message.role === "assistant" ? "Marcus" : "You"}</span>
-              <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(message.timestamp))}</span>
+  return (
+    <div className="divide-y divide-neutral-200 dark:divide-neutral-800 max-w-3xl mx-auto">
+      {messages.map((message) => (
+        <div
+          key={message.id}
+          className={`py-6 px-4 group ${message.role === "assistant" ? "bg-white dark:bg-black" : "bg-neutral-50 dark:bg-neutral-900"}`}
+          onMouseEnter={() => setHoveredMessage(message.id)}
+          onMouseLeave={() => setHoveredMessage(null)}
+        >
+          <div className="flex items-start max-w-3xl mx-auto">
+            <div className="mt-0.5 mr-4 flex-shrink-0">
+              {message.role === "assistant" ? (
+                <div className="h-6 w-6 rounded-full bg-green-600 flex items-center justify-center">
+                  <Sparkles className="h-3.5 w-3.5 text-white" />
+                </div>
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+                  <User className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+                </div>
+              )}
             </div>
 
-            <div className="prose prose-sm dark:prose-invert max-w-none">{message.content}</div>
-
-            {message.role === "assistant" && (
-              <div className="flex items-center gap-1 pt-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <ThumbsUp className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <ThumbsDown className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+            <div className="flex-1 space-y-2 overflow-hidden">
+              <div className="flex items-center">
+                <div className="font-medium text-sm">{message.role === "assistant" ? "Marcus" : "You"}</div>
               </div>
-            )}
+
+              <div className="prose prose-neutral dark:prose-invert prose-sm max-w-none">
+                {typeof message.content === 'string' ? (
+                  <div dangerouslySetInnerHTML={{ __html: message.content }} />
+                ) : (
+                  <p>{message.content}</p>
+                )}
+              </div>
+
+              {message.role === "assistant" && hoveredMessage === message.id && (
+                <div className="flex items-center pt-2 gap-2 text-neutral-500 dark:text-neutral-400">
+                  <button className="inline-flex items-center text-xs gap-1.5 py-1 px-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800">
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </button>
+                  <div className="flex items-center gap-0.5 ml-auto">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800">
+                      <ThumbsUp className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800">
+                      <ThumbsDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ))}
 
       {isLoading && (
-        <div className="flex gap-4 items-start">
-          <Avatar className="bg-gradient-to-br from-blue-500 to-purple-600">
-            <AvatarFallback>
-              <Sparkles className="h-4 w-4 text-white" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Marcus</span>
-              <span className="text-xs text-muted-foreground">Just now</span>
+        <div className="py-6 px-4 bg-white dark:bg-black">
+          <div className="flex items-start max-w-3xl mx-auto">
+            <div className="mt-0.5 mr-4 flex-shrink-0">
+              <div className="h-6 w-6 rounded-full bg-green-600 flex items-center justify-center">
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              </div>
             </div>
-            <div className="h-6 mt-2 flex items-center">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                <div
-                  className="w-2 h-2 rounded-full bg-primary animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                ></div>
-                <div
-                  className="w-2 h-2 rounded-full bg-primary animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                ></div>
+            <div className="flex-1">
+              <div className="font-medium text-sm">Marcus</div>
+              <div className="h-6 mt-2 flex items-center">
+                <div className="flex gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" style={{ animationDelay: "150ms" }}></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" style={{ animationDelay: "300ms" }}></div>
+                </div>
               </div>
             </div>
           </div>
