@@ -45,15 +45,65 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 0 0% 98%;
+    --ring: 240 4.9% 83.9%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* AI Response Formatting */
+.prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.prose li {
+  margin-bottom: 0.5em;
+}
+
+.prose li:last-child {
+  margin-bottom: 0;
+}
+
+.prose p {
+  margin-bottom: 1em;
+}
+
+.prose h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 1.5em 0 0.75em 0;
+}
+
+.prose h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 1.25em 0 0.5em 0;
+}
+
+/* Specific styles for numbered recommendation lists */
+.prose ol.recommendations li,
+.prose ul.recommendations li {
+  padding: 0.5em;
+  margin-bottom: 0.75em;
+  border-radius: 0.25em;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.dark .prose ol.recommendations li,
+.dark .prose ul.recommendations li {
+  background-color: rgba(255, 255, 255, 0.05);
 }

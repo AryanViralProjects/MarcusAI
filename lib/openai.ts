@@ -107,7 +107,7 @@ export interface Citation {
 function addSystemMessage(messages: any[]): any[] {
   const systemMessage = {
     role: "system",
-    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator.You are A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary. Rest keep your messages short and to the point Speak hinglish only when topic is related Aryan, otherwise speak ENGLISH only."
+    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator. You are an A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary.\n\nIMPORTANT FORMATTING INSTRUCTIONS:\n1. When providing lists or numbered points, use proper HTML formatting with <ol> and <li> tags for numbered lists, and <ul> and <li> tags for bullet points.\n2. Ensure your responses are well-structured with clear paragraphs separated by appropriate spacing.\n3. For any step-by-step instructions, use a numbered list format.\n4. Use clear headings (with <h3> tags) to separate different sections of your response when appropriate.\n5. Keep your messages concise and well-organized.\n6. When listing items like movies, books, or recommendations, always use a numbered or bulleted list format."
   };
   
   const hasSystemMessage = messages.some(msg => msg.role === "system");
@@ -371,6 +371,70 @@ function formatWebSearchResult(content: string, citations: Citation[]): string {
   return formattedContent;
 }
 
+// Format AI response content into structured HTML
+function formatAIResponse(content: string): string {
+  // Check if content is empty or undefined
+  if (!content) return '';
+  
+  // Convert the numbered list format (1. Item) to proper HTML list
+  const hasNumberedList = /\d+\.\s+/.test(content);
+  
+  if (hasNumberedList) {
+    // First attempt to identify distinct list sections
+    let sections = content.split(/\n{2,}/);
+    
+    // Process each section
+    sections = sections.map(section => {
+      // Check if this section is a numbered list
+      if (/^\d+\.\s+/.test(section)) {
+        // Split into list items
+        const items = section.split(/\n(?=\d+\.\s+)/);
+        
+        // Format as an ordered list
+        return `<ol>${items.map(item => `<li>${item.replace(/^\d+\.\s+/, '')}</li>`).join('')}</ol>`;
+      }
+      
+      return `<p>${section}</p>`;
+    });
+    
+    return sections.join('');
+  }
+  
+  // Format bullet points
+  if (content.includes('• ') || content.includes('* ')) {
+    // Split content into sections
+    let sections = content.split(/\n{2,}/);
+    
+    // Process each section
+    sections = sections.map(section => {
+      // Check if this section is a bullet list
+      if (/^[•*]\s+/.test(section)) {
+        // Split into list items and format as an unordered list
+        const items = section.split(/\n(?=[•*]\s+)/);
+        return `<ul>${items.map(item => `<li>${item.replace(/^[•*]\s+/, '')}</li>`).join('')}</ul>`;
+      }
+      
+      return `<p>${section}</p>`;
+    });
+    
+    return sections.join('');
+  }
+  
+  // Basic formatting for regular content
+  // Convert line breaks to paragraphs
+  let htmlContent = content
+    .split(/\n{2,}/)
+    .map(paragraph => `<p>${paragraph}</p>`)
+    .join('');
+  
+  // Format bold and italic text
+  htmlContent = htmlContent
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  return htmlContent;
+}
+
 // Get completion from OpenAI
 async function getOpenAICompletion(messages: any[]): Promise<string> {
   try {
@@ -385,8 +449,9 @@ async function getOpenAICompletion(messages: any[]): Promise<string> {
       max_tokens: 2000
     });
     
-    // Return the content
-    return response.choices[0]?.message?.content || "";
+    // Format the response content with proper HTML structure
+    const rawContent = response.choices[0]?.message?.content || "";
+    return formatAIResponse(rawContent);
   } catch (error) {
     console.error("Error in getOpenAICompletion:", error);
     throw error;
@@ -419,30 +484,37 @@ async function getAnthropicCompletion(messages: any[]): Promise<string> {
       messages: formattedMessages.messages
     });
     
+    // Extract the raw content
+    let rawContent = "";
+    
     // Return the content - safely handle different content types
     if (response.content && Array.isArray(response.content) && response.content.length > 0) {
       const contentBlock = response.content[0] as AnthropicContentBlock;
       
       // Check if content block is text type (most common)
       if (contentBlock.type === 'text' && typeof contentBlock.text === 'string') {
-        return contentBlock.text;
+        rawContent = contentBlock.text;
       }
       
       // For older API versions or different content types
-      if (typeof contentBlock === 'object' && contentBlock !== null) {
+      else if (typeof contentBlock === 'object' && contentBlock !== null) {
         // Try to extract text content using different property approaches
         for (const key of ['text', 'value', 'content']) {
           if (key in contentBlock && typeof contentBlock[key] === 'string') {
-            return contentBlock[key];
+            rawContent = contentBlock[key];
+            break;
           }
         }
         
         // Last resort - stringify the content (will rarely be needed)
-        return `${JSON.stringify(contentBlock)}`;
+        if (!rawContent) {
+          rawContent = `${JSON.stringify(contentBlock)}`;
+        }
       }
     }
     
-    return ""; // Fallback if no valid content is found
+    // Format the raw content with proper HTML structure
+    return formatAIResponse(rawContent);
   } catch (error) {
     console.error("Error in getAnthropicCompletion:", error);
     throw error;
@@ -478,16 +550,19 @@ async function getGeminiCompletion(messages: any[]): Promise<string> {
     const result = await model.generateContent(inputText);
     
     // Handle the response safely
+    let rawContent = "I couldn't generate a response. Please try again.";
+    
     if (result && result.response) {
       try {
-        return result.response.text();
+        rawContent = result.response.text();
       } catch (textError) {
         console.error("Error getting text from Gemini response:", textError);
-        return "Sorry, I couldn't generate a proper response.";
+        rawContent = "Sorry, I couldn't generate a proper response.";
       }
     }
     
-    return "I couldn't generate a response. Please try again.";
+    // Format the raw content with proper HTML structure
+    return formatAIResponse(rawContent);
   } catch (error) {
     console.error("Error in getGeminiCompletion:", error);
     throw error;
