@@ -9,10 +9,14 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.log('GET /api/conversations - No authenticated user found');
+      return NextResponse.json([], { status: 200 }); // Return empty array instead of error for unauthenticated users
     }
     
+    console.log('GET /api/conversations - Fetching conversations for user:', session.user.email);
     const conversations = await getUserConversations();
+    console.log(`GET /api/conversations - Found ${conversations.length} conversations`);
+    
     return NextResponse.json(conversations);
   } catch (error: any) {
     console.error('Error fetching conversations:', error);
@@ -29,19 +33,31 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.log('POST /api/conversations - No authenticated user found');
+      // Create a local conversation ID for unauthenticated users
+      const localConversationId = `local-${Date.now()}`;
+      return NextResponse.json({
+        id: localConversationId,
+        title: 'New conversation',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: []
+      }, { status: 200 });
     }
     
+    console.log('POST /api/conversations - Creating conversation for user:', session.user.email);
     const { title } = await req.json();
     const conversation = await createConversation(title);
     
     if (!conversation) {
+      console.error('POST /api/conversations - Failed to create conversation');
       return NextResponse.json(
         { error: 'Failed to create conversation' },
         { status: 500 }
       );
     }
     
+    console.log('POST /api/conversations - Created conversation with ID:', conversation.id);
     return NextResponse.json(conversation);
   } catch (error: any) {
     console.error('Error creating conversation:', error);

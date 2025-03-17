@@ -24,9 +24,9 @@ const TOOLS: ToolOption[] = [
   },
   {
     id: ToolType.FILE_SEARCH,
-    name: "File Search",
+    name: "Performance Marketing",
     icon: <FileSearch className="h-4 w-4" />,
-    description: "Search through your files"
+    description: "Search through performance marketing documents"
   },
   {
     id: ToolType.COMPUTER_USE,
