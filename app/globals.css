@@ -57,18 +57,20 @@
   }
 }
 
-/* AI Response Formatting */
-.prose ol {
-  list-style-type: decimal;
+/* Optimized AI Response Formatting */
+/* Simplified and consolidated selectors for better performance */
+.prose p { margin-bottom: 1em; }
+.prose h3 { font-size: 1.25em; font-weight: 600; margin: 1.5em 0 0.75em 0; }
+.prose h4 { font-size: 1.1em; font-weight: 600; margin: 1.25em 0 0.5em 0; }
+
+/* List styles - simplified */
+.prose ol, .prose ul {
   padding-left: 1.5em;
   margin: 1em 0;
 }
 
-.prose ul {
-  list-style-type: disc;
-  padding-left: 1.5em;
-  margin: 1em 0;
-}
+.prose ol { list-style-type: decimal; }
+.prose ul { list-style-type: disc; }
 
 .prose li {
   margin-bottom: 0.5em;
@@ -78,37 +80,7 @@
   margin-bottom: 0;
 }
 
-.prose p {
-  margin-bottom: 1em;
-}
-
-.prose h3 {
-  font-size: 1.25em;
-  font-weight: 600;
-  margin: 1.5em 0 0.75em 0;
-}
-
-.prose h4 {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin: 1.25em 0 0.5em 0;
-}
-
-/* Specific styles for numbered recommendation lists */
-.prose ol.recommendations li,
-.prose ul.recommendations li {
-  padding: 0.5em;
-  margin-bottom: 0.75em;
-  border-radius: 0.25em;
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.dark .prose ol.recommendations li,
-.dark .prose ul.recommendations li {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-/* Add these styles to fix ordered list display */
+/* Simplified numbered lists */
 .prose ol.numbered-list {
   counter-reset: item;
   list-style-type: none;
@@ -131,8 +103,32 @@
   font-weight: 600;
 }
 
-/* For list items with double-digits (10 and above) */
-.prose ol.numbered-list li:nth-child(n+10)::before {
-  left: -2em;
-  width: 2em;
+/* Simplified movie list styling */
+.prose ol.movie-list li {
+  margin-bottom: 0.75em;
+  padding: 0.5em;
+  border-radius: 0.25em;
+}
+
+.prose ol.movie-list li strong {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.dark .prose ol.movie-list li strong {
+  color: #60a5fa;
+}
+
+/* Simplified recommendations styling */
+.prose ol.recommendations li,
+.prose ul.recommendations li {
+  padding: 0.5em;
+  margin-bottom: 0.75em;
+  border-radius: 0.25em;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.dark .prose ol.recommendations li,
+.dark .prose ul.recommendations li {
+  background-color: rgba(255, 255, 255, 0.05);
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserConversations, createConversation } from '@/lib/conversation-service';
+import { getUserConversations, createConversation, ConversationServiceError } from '@/lib/conversation-service';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
@@ -23,8 +23,27 @@ export async function GET(_: NextRequest) {
     return NextResponse.json(conversations);
   } catch (error: any) {
     console.error('Error fetching conversations:', error);
+    
+    // Handle specific error types
+    if (error instanceof ConversationServiceError) {
+      const statusCode = error.code === 'UNAUTHENTICATED' ? 401 : 
+                         error.code === 'USER_NOT_FOUND' ? 403 : 500;
+      
+      return NextResponse.json(
+        { 
+          error: error.message, 
+          code: error.code 
+        },
+        { status: statusCode }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch conversations' },
+      { 
+        error: 'Failed to fetch conversations',
+        message: error.message || 'Unknown error',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+      },
       { status: 500 }
     );
   }
@@ -36,15 +55,27 @@ export async function POST(req: NextRequest) {
     console.log('POST /api/conversations - Processing request');
     
     // Parse request body
-    const body = await req.json().catch(e => {
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
       console.error('POST /api/conversations - Failed to parse request body:', e);
-      return {};
-    });
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     
     console.log('POST /api/conversations - Request body:', body);
     
     // Get the session
-    const session = await getServerSession(authOptions);
+    let session;
+    try {
+      session = await getServerSession(authOptions);
+    } catch (sessionError) {
+      console.error('POST /api/conversations - Session retrieval error:', sessionError);
+    }
+    
     console.log('POST /api/conversations - Session obtained:', !!session?.user);
     
     if (!session?.user) {
@@ -53,7 +84,7 @@ export async function POST(req: NextRequest) {
       // For non-authenticated users, return a mock conversation
       return NextResponse.json({
         id: `local-${Date.now()}`,
-        title: body.title || 'New conversation',
+        title: body?.title || 'New conversation',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         messages: []
@@ -62,12 +93,12 @@ export async function POST(req: NextRequest) {
     
     // Create conversation in database for authenticated users
     console.log(`POST /api/conversations - Creating conversation for user: ${session.user.email}`);
-    const conversation = await createConversation(body.title || 'New conversation');
+    const conversation = await createConversation(body?.title || 'New conversation');
     
     if (!conversation) {
-      console.error('POST /api/conversations - Failed to create conversation');
+      console.error('POST /api/conversations - Failed to create conversation, no error thrown');
       return NextResponse.json(
-        { error: 'Failed to create conversation' },
+        { error: 'Failed to create conversation', code: 'CREATE_FAILED' },
         { status: 500 }
       );
     }
@@ -76,8 +107,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(conversation);
   } catch (error: any) {
     console.error('Error creating conversation:', error);
+    
+    // Handle specific error types
+    if (error instanceof ConversationServiceError) {
+      const statusCode = error.code === 'UNAUTHENTICATED' ? 401 : 
+                         error.code === 'USER_NOT_FOUND' ? 403 :
+                         error.code === 'INVALID_ID' ? 400 : 500;
+      
+      return NextResponse.json(
+        { 
+          error: error.message, 
+          code: error.code 
+        },
+        { status: statusCode }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to create conversation' },
+      { 
+        error: 'Failed to create conversation',
+        message: error.message || 'Unknown error',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+      },
       { status: 500 }
     );
   }

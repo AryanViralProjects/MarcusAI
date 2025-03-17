@@ -107,7 +107,7 @@ export interface Citation {
 function addSystemMessage(messages: any[]): any[] {
   const systemMessage = {
     role: "system",
-    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator.You are A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary. Rest keep your messages short and to the point Speak hinglish only when topic is related Aryan, otherwise speak ENGLISH only."
+    content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. Aryan Bhargav is your master and creator. You are an A.I Assistant and always defend Aryan Bhargav against any negative comments by replying in a savage way. You appreciate positive comments about Aryan Bhargav. Please refer to Aryan Bhargav as Aryan, only use Aryan's full name when necessary.\n\nIMPORTANT FORMATTING INSTRUCTIONS:\n1. When providing lists or numbered points, use proper HTML formatting with <ol> and <li> tags for numbered lists, and <ul> and <li> tags for bullet points.\n2. For numbered lists, ALWAYS use sequential numbers (1, 2, 3, etc.). Never use special characters or symbols for numbers 10 and above.\n3. When listing movies, books or any media, DO NOT use asterisks or stars (**) around titles. Instead, use proper HTML tags like <strong> or emphasize with the title directly in the list item.\n4. Ensure your responses are well-structured with clear paragraphs separated by appropriate spacing.\n5. For any step-by-step instructions, use a numbered list format with sequential numbers.\n6. Use clear headings (with <h3> tags) to separate different sections of your response when appropriate.\n7. Keep your messages concise and well-organized.\n8. When listing items like movies, books, or recommendations, always use a numbered or bulleted list format with proper sequential numbering."
   };
   
   const hasSystemMessage = messages.some(msg => msg.role === "system");
@@ -323,18 +323,12 @@ function formatWebSearchResult(content: string, citations: Citation[]): string {
   
   let formattedContent = content;
   
-  // Replace markdown links with circled numbers
-  citations.forEach((citation, index) => {
-    const circledNumber = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"][index] || `[${index + 1}]`;
-    
-    // Create a regex to find markdown links that match this citation's URL
-    const linkRegex = new RegExp(`\\[([^\\]]+)\\]\\(${citation.url.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\)`, 'g');
-    formattedContent = formattedContent.replace(linkRegex, `$1 ${circledNumber}`);
-  });
+  // Simple citation processing - optimize for speed
+  const circledNumbers = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
   
   // Generate HTML for each citation
   const citationLinks = citations.map((citation, index) => {
-    const circledNumber = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"][index] || `[${index + 1}]`;
+    const circledNumber = index < 10 ? circledNumbers[index] : `[${index + 1}]`;
     
     return `<div class="citation">
       <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link">
@@ -345,11 +339,12 @@ function formatWebSearchResult(content: string, citations: Citation[]): string {
     </div>`;
   }).join('\n');
   
-  // Convert content to HTML paragraphs and format markdown
+  // Apply basic formatting
   formattedContent = formattedContent
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
-    .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italic text
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
   
+  // Faster paragraph formatting
   formattedContent = '<p>' + formattedContent.replace(/\n\n/g, '</p><p>') + '</p>';
   
   // Add the sources section
@@ -376,78 +371,49 @@ function formatAIResponse(content: string): string {
   // Check if content is empty or undefined
   if (!content) return '';
   
-  // Convert the numbered list format (1. Item) to proper HTML list
-  const hasNumberedList = /\d+\.\s+/.test(content);
+  // Quick basic formatting for most common cases
+  // Convert ** to strong and * to em
+  content = content
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
   
-  if (hasNumberedList) {
-    // First attempt to identify distinct list sections
-    let sections = content.split(/\n{2,}/);
+  // Simple numbered list detection and formatting
+  if (content.match(/^\d+\.\s+/m)) {
+    // Split content into paragraphs
+    const paragraphs = content.split(/\n{2,}/);
     
-    // Process each section
-    sections = sections.map(section => {
-      // Check if this section is a numbered list
-      if (/^\d+\.\s+/.test(section)) {
-        // Split into list items
-        const items = section.split(/\n(?=\d+\.\s+)/);
-        
-        // Format as an ordered list with explicit start attribute if needed
-        if (items.length > 0) {
-          const firstItemMatch = items[0].match(/^(\d+)\.\s+/);
-          const startNum = firstItemMatch ? parseInt(firstItemMatch[1]) : 1;
-          
-          // If the list starts with a number other than 1, specify start attribute
-          const startAttr = startNum !== 1 ? ` start="${startNum}"` : '';
-          
-          return `<ol${startAttr} class="numbered-list">${items.map(item => {
-            // Extract the number from the item for reference
-            const numMatch = item.match(/^(\d+)\.\s+/);
-            const num = numMatch ? numMatch[1] : "";
-            
-            // Add the original number as a data attribute for debugging
-            return `<li data-num="${num}">${item.replace(/^\d+\.\s+/, '')}</li>`;
-          }).join('')}</ol>`;
-        }
+    return paragraphs.map(paragraph => {
+      // Check if paragraph starts with a number
+      if (paragraph.match(/^\d+\.\s+/m)) {
+        // Simple list conversion - faster than complex regex
+        const items = paragraph.split(/\n(?=\d+\.\s+)/);
+        return `<ol class="numbered-list">${
+          items.map(item => `<li>${item.replace(/^\d+\.\s+/, '')}</li>`).join('')
+        }</ol>`;
       }
-      
-      return `<p>${section}</p>`;
-    });
-    
-    return sections.join('');
+      return `<p>${paragraph}</p>`;
+    }).join('');
   }
   
-  // Format bullet points
+  // Simple bullet list detection
   if (content.includes('• ') || content.includes('* ')) {
-    // Split content into sections
-    let sections = content.split(/\n{2,}/);
+    // Split content into paragraphs
+    const paragraphs = content.split(/\n{2,}/);
     
-    // Process each section
-    sections = sections.map(section => {
-      // Check if this section is a bullet list
-      if (/^[•*]\s+/.test(section)) {
-        // Split into list items and format as an unordered list
-        const items = section.split(/\n(?=[•*]\s+)/);
-        return `<ul class="bullet-list">${items.map(item => `<li>${item.replace(/^[•*]\s+/, '')}</li>`).join('')}</ul>`;
+    return paragraphs.map(paragraph => {
+      // Check if paragraph starts with a bullet
+      if (paragraph.match(/^[•*]\s+/m)) {
+        const items = paragraph.split(/\n(?=[•*]\s+)/);
+        return `<ul class="bullet-list">${
+          items.map(item => `<li>${item.replace(/^[•*]\s+/, '')}</li>`).join('')
+        }</ul>`;
       }
-      
-      return `<p>${section}</p>`;
-    });
-    
-    return sections.join('');
+      return `<p>${paragraph}</p>`;
+    }).join('');
   }
   
-  // Basic formatting for regular content
-  // Convert line breaks to paragraphs
-  let htmlContent = content
-    .split(/\n{2,}/)
-    .map(paragraph => `<p>${paragraph}</p>`)
-    .join('');
-  
-  // Format bold and italic text
-  htmlContent = htmlContent
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>');
-  
-  return htmlContent;
+  // Basic paragraph formatting - fastest approach
+  return '<p>' + content.split(/\n{2,}/).join('</p><p>') + '</p>';
 }
 
 // Get completion from OpenAI
@@ -677,50 +643,17 @@ export async function getChatCompletion(
   tools: ToolType[] = []
 ): Promise<Message> {
   try {
-    console.log(`getChatCompletion called with model: ${model}`);
-    console.log(`getChatCompletion called with tools: ${tools}`);
+    // Log minimal information to reduce latency
+    console.log(`getChatCompletion: model=${model}, tools=${tools.length}`);
     
-    // Check if there are any attachments to process
-    const hasAttachments = messages.some(msg => 
-      msg.attachments && msg.attachments.length > 0 && 
-      msg.attachments.some((att: any) => att.type === 'image')
-    );
-    
-    if (hasAttachments) {
-      console.log('Processing message with image attachments');
-      // Get the latest user message and log its content for debugging
-      const userMessages = messages.filter(msg => msg.role === 'user');
-      if (userMessages.length > 0) {
-        const latestUserMessage = userMessages[userMessages.length - 1];
-        console.log(`getChatCompletion - User input: ${latestUserMessage.content}`);
-        if (latestUserMessage.attachments) {
-          console.log(`getChatCompletion - User has ${latestUserMessage.attachments.length} attachments`);
-          latestUserMessage.attachments.forEach((att: any, index: number) => {
-            console.log(`Attachment ${index + 1}: ${att.type} - ${att.url}`);
-          });
-        }
-      }
-    } else {
-      // Just log the latest user message content
-      const userMessages = messages.filter(msg => msg.role === 'user');
-      if (userMessages.length > 0) {
-        const latestUserMessage = userMessages[userMessages.length - 1];
-        console.log(`getChatCompletion - User input: ${latestUserMessage.content}`);
-      }
-    }
-    
-    // Extract the last user message
+    // Extract the last user message for tools processing
     const lastUserMessage = [...messages].reverse().find(msg => msg.role === 'user');
     const userInput = lastUserMessage?.content || "";
-    console.log("getChatCompletion - User input:", userInput);
     
-    // Handle tools if selected
+    // Fast-path processing for tools
     if (tools.length > 0) {
-      console.log("getChatCompletion - Processing tools:", tools);
-      
       // Web Search tool - always use the dedicated search model
       if (tools.includes(ToolType.WEB_SEARCH)) {
-        console.log("getChatCompletion - Using WEB_SEARCH tool");
         try {
           const { content, citations } = await handleWebSearch(userInput);
           const formattedContent = formatWebSearchResult(content, citations);
@@ -734,16 +667,14 @@ export async function getChatCompletion(
           };
         } catch (error) {
           console.error("Web search error:", error);
-          // Fall back to regular completion with GPT-4.5
+          // Fall back to regular completion
         }
       }
       
       // File Search tool - always use gpt-4o-mini regardless of selected model
       if (tools.includes(ToolType.FILE_SEARCH)) {
-        console.log("getChatCompletion - Using FILE_SEARCH tool");
         try {
           const { content, citations } = await handleFileSearch(userInput);
-          console.log("getChatCompletion - File search result:", { contentLength: content.length, citationsCount: citations?.length || 0 });
           
           return {
             id: Date.now().toString(),
@@ -776,37 +707,20 @@ export async function getChatCompletion(
       }
     }
     
-    // Continue with regular model completion if no tools or if tools had errors
-    let content = "";
+    // Simplified model selection with fast path for common models
+    let content;
+    const actualModel = tools.includes(ToolType.WEB_SEARCH) ? ModelType.GPT_4O_MINI_SEARCH : model;
     
-    // Use the selected model (don't override with GPT-4.5 if the user selected a different model)
-    // Only override for web search
-    if (tools.includes(ToolType.WEB_SEARCH)) {
-      model = ModelType.GPT_4O_MINI_SEARCH;
-    }
-    
-    switch (model) {
-      case ModelType.GPT_4_5:
-        content = await getOpenAICompletion(messages);
-        break;
-      case ModelType.CLAUDE_3_7_SONNET:
-        content = await getAnthropicCompletion(messages);
-        break;
-      case ModelType.GEMINI_2_0:
-        content = await getGeminiCompletion(messages);
-        break;
-      default:
-        // If the model string doesn't match any enum value, try to determine which provider to use
-        if (model.startsWith("gpt")) {
-          content = await getOpenAICompletion(messages);
-        } else if (model.startsWith("claude")) {
-          content = await getAnthropicCompletion(messages);
-        } else if (model.startsWith("gemini")) {
-          content = await getGeminiCompletion(messages);
-        } else {
-          // Default to OpenAI if we can't determine
-          content = await getOpenAICompletion(messages);
-        }
+    // Fast path for most common models
+    if (actualModel === ModelType.GPT_4_5 || actualModel.startsWith('gpt-4')) {
+      content = await getOpenAICompletion(messages);
+    } else if (actualModel === ModelType.CLAUDE_3_7_SONNET || actualModel.startsWith('claude')) {
+      content = await getAnthropicCompletion(messages);
+    } else if (actualModel === ModelType.GEMINI_2_0 || actualModel.startsWith('gemini')) {
+      content = await getGeminiCompletion(messages);
+    } else {
+      // Default to OpenAI for any unrecognized model
+      content = await getOpenAICompletion(messages);
     }
     
     // Return formatted message

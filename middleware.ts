@@ -1,9 +1,34 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from "next-auth/jwt";
-import { NextRequest } from "next/server";
+
+// API paths that may need CORS headers in production
+const apiRoutes = [
+  /^\/api\/.*$/,
+];
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  
+  // Add CORS headers to API routes
+  if (apiRoutes.some(pattern => pattern.test(path))) {
+    // For OPTIONS (preflight) requests, return OK with headers
+    if (request.method === 'OPTIONS') {
+      const response = new NextResponse(null, { status: 200 });
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      response.headers.set('Access-Control-Max-Age', '86400');
+      return response;
+    }
+    
+    // For regular API requests, add CORS headers and continue
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
+  }
   
   // Define auth-only paths that require authentication
   const authOnlyPaths = ["/settings"];
@@ -43,5 +68,6 @@ export const config = {
     "/settings/:path*",
     "/sign-in",
     "/sign-up",
+    "/api/:path*", // Add API routes to the matcher
   ],
 };
