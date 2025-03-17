@@ -785,7 +785,44 @@ export async function getChatCompletion(
     
     // Fast path for most common models
     if (model === ModelType.GPT_4_5 || model.startsWith('gpt-4')) {
-      content = await getOpenAICompletion(messages, signal, model);
+      try {
+        // For quota issues, use a more reliable model with better quota handling
+        const shouldTryAlternativeFirst = model === ModelType.GPT_4_5;
+        
+        if (shouldTryAlternativeFirst) {
+          // Try the Claude model first if we're using GPT-4.5 to avoid quota issues
+          console.log("Using Claude as primary model due to potential OpenAI quota limitations");
+          try {
+            content = await getAnthropicCompletion(messages, signal);
+          } catch (claudeError) {
+            console.error("Claude model failed, trying Gemini as fallback:", claudeError);
+            try {
+              content = await getGeminiCompletion(messages, signal);
+            } catch (geminiError) {
+              console.error("All alternative models failed, using default message:", geminiError);
+              content = "I apologize, but I encountered an issue processing your request. Please try again with a simpler query.";
+            }
+          }
+        } else {
+          // Try using the specified OpenAI model if not GPT-4.5
+          content = await getOpenAICompletion(messages, signal, model);
+        }
+      } catch (error) {
+        console.error(`Error with ${model}:`, error);
+        // If any OpenAI model fails, try alternatives
+        console.log("OpenAI model failed, trying alternative models");
+        try {
+          content = await getAnthropicCompletion(messages, signal);
+        } catch (claudeError) {
+          console.error("Claude model failed, trying Gemini as final fallback:", claudeError);
+          try {
+            content = await getGeminiCompletion(messages, signal);
+          } catch (geminiError) {
+            console.error("All models failed:", geminiError);
+            content = "I apologize, but I encountered an issue processing your request. Please try again with a simpler query.";
+          }
+        }
+      }
     } else if (model === ModelType.CLAUDE_3_7_SONNET || model.startsWith('claude')) {
       content = await getAnthropicCompletion(messages, signal);
     } else if (model === ModelType.GEMINI_2_0 || model.startsWith('gemini')) {

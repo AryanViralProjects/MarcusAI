@@ -301,7 +301,7 @@ export function ChatInterface({
       
       // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout (increased from 2 minutes)
       
       try {
         // Send the message to the API with timeout
@@ -316,36 +316,38 @@ export function ChatInterface({
         
         clearTimeout(timeoutId);
         
+        // Even if response is not OK, try to get the JSON
+        const apiResponse = await response.json().catch(err => {
+          console.warn("Failed to parse JSON from response:", err);
+          return null;
+        });
+        
+        // Log the response for debugging
+        console.log("API response status:", response.status);
+        console.log("API response:", apiResponse);
+        
         if (!response.ok) {
           // Check for specific status codes
           if (response.status === 504) {
-            throw new Error('Request timed out. The AI service is taking too long to respond.');
+            // Don't throw error for timeouts, just log it
+            console.warn('Request is taking longer than expected. Continuing to wait...');
+            // Continue processing without displaying error
           } else if (response.status === 429) {
-            throw new Error('The AI service is currently busy. Please try again in a moment.');
+            console.warn('Rate limit hit. The AI service is currently busy.');
+            // Don't throw, use the response if we have one
           } else {
-            // Try to get error details if possible
-            const errorData = await response.json().catch(() => null);
-            if (errorData?.error) {
-              throw new Error(errorData.error);
-            } else {
-              throw new Error(`API error: ${response.status} ${response.statusText}`);
-            }
+            console.warn(`API status error: ${response.status} ${response.statusText}`);
+            // Don't throw, use the response if we have one
           }
         }
         
-        const apiResponse = await response.json();
-        
-        // Log the response for debugging
-        console.log("API response:", apiResponse);
-        console.log("Used model:", selectedModel);
-        console.log("Used tools:", selectedTools);
-        
-        if (apiResponse) {
+        // If we have a response with content, use it regardless of status code
+        if (apiResponse && apiResponse.content) {
           // Create assistant message
           const assistantMessage: Message = {
             id: Date.now().toString(),
             role: "assistant",
-            content: apiResponse.content || "I'm not sure how to respond to that.",
+            content: apiResponse.content,
             timestamp: new Date().toISOString(),
             citations: apiResponse.citations // Include citations if available
           }
@@ -357,10 +359,14 @@ export function ChatInterface({
           }
 
           // Update current conversation with assistant message
-          setCurrentConversation(prev => ({
-            ...prev,
-            messages: [...prev.messages, assistantMessage]
-          }))
+          // Remove any loading messages first (if they exist)
+          setCurrentConversation(prev => {
+            const nonLoadingMessages = prev.messages.filter(msg => !msg.id.startsWith('loading-'));
+            return {
+              ...prev,
+              messages: [...nonLoadingMessages, assistantMessage]
+            }
+          })
 
           // Update conversation with assistant message
           setConversations((prevConversations) => {

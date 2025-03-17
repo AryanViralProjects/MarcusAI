@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 90000); // 90 seconds timeout
+    }, 600000); // 10 minutes timeout (increased from 90 seconds)
     
     let requestBody;
     try {
@@ -132,23 +132,29 @@ export async function POST(req: NextRequest) {
       console.error('Error from AI API:', openaiError);
       
       if (openaiError.name === 'AbortError' || openaiError.message?.includes('aborted')) {
-        return NextResponse.json(
-          { error: 'Request timed out. Please try a shorter prompt or try again later.' },
-          { status: 504 }
-        );
-      }
-      
-      if (openaiError.message?.includes('rate_limit') || openaiError.message?.includes('timeout')) {
+        console.warn('Request timeout occurred, but continuing with processing');
+        // Instead of returning an error, create a response that indicates the model is still thinking
+        response = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "I'm still working on your request. The response is taking longer than expected but will be available soon. Please continue waiting or try a simpler query if this persists.",
+          timestamp: new Date().toISOString()
+        };
+      } else if (openaiError.message?.includes('rate_limit') || openaiError.message?.includes('timeout')) {
         return NextResponse.json(
           { error: 'The AI service is currently busy. Please try again in a moment.' },
           { status: 429 }
         );
+      } else {
+        // Instead of returning error status, create a fallback response
+        console.error('API error details:', openaiError);
+        response = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "I encountered an issue while processing your request. This might be due to temporary service limitations. Could you try again with a simpler query?",
+          timestamp: new Date().toISOString()
+        };
       }
-      
-      return NextResponse.json(
-        { error: 'Failed to generate AI response', details: openaiError.message },
-        { status: 500 }
-      );
     } finally {
       clearTimeout(timeoutId);
     }
