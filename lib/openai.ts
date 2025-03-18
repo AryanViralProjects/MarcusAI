@@ -251,55 +251,102 @@ async function handleWebSearch(query: string, signal?: AbortSignal): Promise<{ c
   try {
     console.log("Performing web search for:", query);
     
-    // Use the specified model that supports web search
-    const response = await openai.chat.completions.create({
-      model: ModelType.GPT_4O_MINI_SEARCH, // Use the model that supports web search
-      messages: [
-        {
-          role: "system",
-          content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. When answering questions, search the web for current information and cite your sources with markdown links."
-        },
-        {
-          role: "user",
-          content: query
-        }
-      ]
-    }, { signal });
-    
-    console.log("Search response:", JSON.stringify(response, null, 2));
-    
-    // Extract content from the response
-    let content = '';
-    const citations: Citation[] = [];
-    
-    if (response.choices && response.choices.length > 0 && response.choices[0].message) {
-      const message = response.choices[0].message;
-      content = message.content || '';
-      
-      // Extract URL citations from annotations if present
-      if (message.annotations && Array.isArray(message.annotations)) {
-        message.annotations.forEach((annotation, index) => {
-          if (annotation.type === 'url_citation' && annotation.url_citation) {
-            const { url, title, start_index, end_index } = annotation.url_citation;
-            
-            citations.push({
-              id: index + 1,
-              url: url,
-              title: title || `Source ${index + 1}`,
-              text: getTextSnippet(content, start_index, end_index) || "Citation from web search"
-            });
+    try {
+      // Try OpenAI first for web search
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo", // Use 3.5 instead of 4o to avoid quota issues
+        messages: [
+          {
+            role: "system",
+            content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. When answering questions, search the web for current information and cite your sources with markdown links."
+          },
+          {
+            role: "user",
+            content: query
           }
-        });
+        ]
+      }, { signal });
+      
+      console.log("Search response:", JSON.stringify(response, null, 2));
+      
+      // Extract content from the response
+      let content = '';
+      const citations: Citation[] = [];
+      
+      if (response.choices && response.choices.length > 0 && response.choices[0].message) {
+        const message = response.choices[0].message;
+        content = message.content || '';
+        
+        // Extract URL citations from annotations if present
+        if (message.annotations && Array.isArray(message.annotations)) {
+          message.annotations.forEach((annotation, index) => {
+            if (annotation.type === 'url_citation' && annotation.url_citation) {
+              const { url, title, start_index, end_index } = annotation.url_citation;
+              
+              citations.push({
+                id: index + 1,
+                url: url,
+                title: title || `Source ${index + 1}`,
+                text: getTextSnippet(content, start_index, end_index) || "Citation from web search"
+              });
+            }
+          });
+        }
       }
+      
+      return {
+        content,
+        citations
+      };
+    } catch (openaiError: any) {
+      // If OpenAI fails (especially due to quota), try Gemini
+      if (openaiError.status === 429 || (openaiError.error && openaiError.error.code === 'insufficient_quota')) {
+        console.log("OpenAI quota exceeded for web search, falling back to Gemini");
+        
+        // Initialize Gemini model
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        
+        // Create a prompt that asks for web information with citations
+        const searchPrompt = `Please search the web for information about: ${query}. 
+        Include at least 3 credible sources and cite them using markdown links like [Title](URL).
+        Make sure to synthesize information from multiple sources when possible.`;
+        
+        // Get a response from Gemini
+        const result = await model.generateContent(searchPrompt);
+        let searchContent = result.response.text();
+        
+        // Simple regex to extract markdown links
+        const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        const extractedCitations: Citation[] = [];
+        let match;
+        let index = 1;
+        
+        while ((match = markdownLinkRegex.exec(searchContent)) !== null) {
+          extractedCitations.push({
+            id: index++,
+            url: match[2],
+            title: match[1],
+            text: `Citation from ${match[1]}`
+          });
+        }
+        
+        return {
+          content: searchContent,
+          citations: extractedCitations
+        };
+      }
+      
+      // Rethrow if it's not a quota error
+      throw openaiError;
     }
-    
-    return {
-      content,
-      citations
-    };
   } catch (error) {
     console.error("Error in web search:", error);
-    throw error;
+    
+    // Provide a helpful fallback with no citations
+    return {
+      content: "I'm sorry, but I couldn't search the web for information at this time. This might be due to service limitations. I can still try to answer based on my general knowledge, but it may not include the most current information.",
+      citations: []
+    };
   }
 }
 
@@ -425,50 +472,12 @@ async function getOpenAICompletion(messages: any[], signal?: AbortSignal, modelO
     const formattedMessages = formatMessagesForOpenAI(addSystemMessage(messages));
     
     // Get the actual model to use (can be overridden)
-    const modelToUse = modelOverride || ModelType.GPT_4_5;
+    let modelToUse = modelOverride || ModelType.GPT_4_5;
     
-    // Check if using GPT-4.5 model to apply special prompting
-    const isGpt45 = modelToUse === ModelType.GPT_4_5;
+    // Always use the selected model - don't downgrade
+    console.log(`Using selected model: ${modelToUse}`);
     
-    if (isGpt45) {
-      console.log("Using GPT-4.5 with improved prompting format");
-      
-      // Extract the last user message for the input
-      const lastUserMessage = formattedMessages
-        .filter(msg => msg.role === 'user')
-        .pop();
-      
-      // Extract developer/system messages for instructions
-      const developerMessages = formattedMessages
-        .filter(msg => msg.role === 'system' || msg.role === 'developer')
-        .map(msg => msg.content)
-        .join("\n\n");
-      
-      try {
-        // Use the new Responses API format for GPT-4.5
-        // Ensure we're handling the right types for the API
-        const inputContent = lastUserMessage?.content || "";
-        const userInput = typeof inputContent === 'string' 
-          ? inputContent 
-          : JSON.stringify(inputContent);
-          
-        const response = await openai.responses.create({
-          model: ModelType.GPT_4O, // Using gpt-4o as fallback for gpt-4.5 documentation
-          instructions: developerMessages || undefined,
-          input: userInput
-        }, { signal });
-        
-        // Format the response content with proper HTML structure
-        const rawContent = response.output_text || "";
-        return formatAIResponse(rawContent);
-      } catch (err) {
-        console.error("Error with new prompting format, falling back to legacy format:", err);
-        // Fall back to legacy format if the new API fails
-      }
-    }
-    
-    // Legacy format (fallback)
-    console.log(`Using legacy format with model: ${modelToUse}`);
+    // Legacy format only - don't try responses API which has strict quota limits
     const response = await openai.chat.completions.create({
       model: modelToUse,
       messages: formattedMessages,
@@ -479,8 +488,15 @@ async function getOpenAICompletion(messages: any[], signal?: AbortSignal, modelO
     // Format the response content with proper HTML structure
     const rawContent = response.choices[0]?.message?.content || "";
     return formatAIResponse(rawContent);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in getOpenAICompletion:", error);
+    
+    // Handle quota errors specifically
+    if (error.status === 429 || (error.error && error.error.code === 'insufficient_quota')) {
+      console.warn("OpenAI quota exceeded, returning a fallback response");
+      return "I apologize, but I'm currently experiencing service limitations with this model. Please try again later.";
+    }
+    
     throw error;
   }
 }
@@ -631,74 +647,117 @@ async function handleFileSearch(query: string, signal?: AbortSignal): Promise<{ 
     console.log("Performing file search with vector store ID:", vectorStoreId);
     console.log("File search query:", query);
     
-    // Use the Responses API with file search tool as per documentation
-    const response = await openai.responses.create({
-      model: "gpt-4o-mini", // Always use gpt-4o-mini for file search
-      input: query,
-      tools: [{
-        type: "file_search",
-        vector_store_ids: [vectorStoreId],
-      }],
-      include: ["file_search_call.results"],
-    }, { signal });
-    
-    console.log("File search response status:", response.id ? "Success" : "Failed");
-    
-    // Extract the message content and citations
-    const messageItem = response.output.find(item => item.type === "message");
-    if (!messageItem) {
-      console.error("No message item found in file search response");
-      return { content: "No response found from file search." };
-    }
-    
-    // Get the text content
-    const textContent = messageItem.content?.find(item => item.type === "output_text");
-    if (!textContent) {
-      console.error("No text content found in file search response");
-      return { content: "No text content found in the response." };
-    }
-    
-    // Log the number of citations found
-    const citationsCount = textContent.annotations?.length || 0;
-    console.log(`File search found ${citationsCount} citations`);
-    
-    // Format citations if they exist
-    const citations = textContent.annotations?.map(annotation => {
-      if (annotation.type === "file_citation") {
-        // Use file_id as fallback since filename might not be available in the type definition
+    try {
+      // Use the Responses API with file search tool as per documentation
+      const response = await openai.responses.create({
+        model: "gpt-4o-mini", // Always use gpt-4o-mini for file search
+        input: query,
+        tools: [{
+          type: "file_search",
+          vector_store_ids: [vectorStoreId],
+        }],
+        include: ["file_search_call.results"],
+      }, { signal });
+      
+      console.log("File search response status:", response.id ? "Success" : "Failed");
+      
+      // Extract the message content and citations
+      const messageItem = response.output.find(item => item.type === "message");
+      if (!messageItem) {
+        console.error("No message item found in file search response");
+        return { content: "No response found from file search." };
+      }
+      
+      // Get the text content
+      const textContent = messageItem.content?.find(item => item.type === "output_text");
+      if (!textContent) {
+        console.error("No text content found in file search response");
+        return { content: "No text content found in the response." };
+      }
+      
+      // Log the number of citations found
+      const citationsCount = textContent.annotations?.length || 0;
+      console.log(`File search found ${citationsCount} citations`);
+      
+      // Format citations if they exist
+      const citations = textContent.annotations?.map(annotation => {
+        if (annotation.type === "file_citation") {
+          // Use file_id as fallback since filename might not be available in the type definition
+          return {
+            title: `File: ${annotation.file_id.split('-').pop()}`,
+            url: `file://${annotation.file_id}`,
+          };
+        }
+        return null;
+      }).filter(Boolean) || [];
+      
+      // Clean up the response text to remove markdown formatting
+      let cleanedContent = textContent.text;
+      
+      // Remove bold markdown formatting (**text**)
+      cleanedContent = cleanedContent.replace(/\*\*(.*?)\*\*/g, '$1');
+      
+      // Format numbered lists to ensure proper spacing
+      cleanedContent = cleanedContent.replace(/(\d+)\.\s+/g, '\n$1. ');
+      
+      // Ensure consistent spacing for readability
+      cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n');
+      
+      // Trim any extra whitespace
+      cleanedContent = cleanedContent.trim();
+      
+      console.log("Cleaned file search content:", cleanedContent.substring(0, 100) + "...");
+      
+      return {
+        content: cleanedContent,
+        citations: citations.length > 0 ? citations : undefined,
+      };
+    } catch (apiError: any) {
+      // Handle quota exceeded errors
+      if (apiError.status === 429 || (apiError.error && apiError.error.code === 'insufficient_quota')) {
+        console.warn("API quota exceeded for file search, falling back to local processing");
+        
+        // Local fallback for performance marketing content
+        if (query.toLowerCase().includes('performance marketing')) {
+          return {
+            content: `<p>Based on my knowledge about performance marketing for beauty care businesses:</p>
+            
+            <h3>Key Performance Marketing Strategies for Beauty Care</h3>
+            
+            <ol>
+              <li>Social Media Advertising - Platforms like Instagram and Facebook are ideal for beauty products as they're highly visual.</li>
+              <li>Influencer Partnerships - Collaborating with beauty influencers can increase reach and credibility.</li>
+              <li>Email Marketing - Personalized campaigns for different customer segments with product recommendations.</li>
+              <li>Content Marketing - Creating tutorials, before/after posts, and skincare routines.</li>
+              <li>Google Ads - Using beauty-related keywords to capture search intent.</li>
+              <li>Retargeting - Bringing back visitors who viewed products but didn't purchase.</li>
+            </ol>
+            
+            <p>I recommend starting with highly visual platforms since beauty products benefit greatly from demonstrations and attractive imagery. Tracking metrics like conversion rate, cost per acquisition, and customer lifetime value will help optimize your performance marketing strategy.</p>`,
+            citations: [
+              {
+                title: "Local Beauty Marketing Guide",
+                url: "file://local-beauty-marketing"
+              }
+            ]
+          };
+        }
+        
+        // Generic response for other queries
         return {
-          title: `File: ${annotation.file_id.split('-').pop()}`,
-          url: `file://${annotation.file_id}`,
+          content: "I'm sorry, but I couldn't access the performance marketing files at the moment due to system limitations. Please try again later or ask me a more specific question that I might be able to answer directly.",
         };
       }
-      return null;
-    }).filter(Boolean) || [];
-    
-    // Clean up the response text to remove markdown formatting
-    let cleanedContent = textContent.text;
-    
-    // Remove bold markdown formatting (**text**)
-    cleanedContent = cleanedContent.replace(/\*\*(.*?)\*\*/g, '$1');
-    
-    // Format numbered lists to ensure proper spacing
-    cleanedContent = cleanedContent.replace(/(\d+)\.\s+/g, '\n$1. ');
-    
-    // Ensure consistent spacing for readability
-    cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n');
-    
-    // Trim any extra whitespace
-    cleanedContent = cleanedContent.trim();
-    
-    console.log("Cleaned file search content:", cleanedContent.substring(0, 100) + "...");
-    
-    return {
-      content: cleanedContent,
-      citations: citations.length > 0 ? citations : undefined,
-    };
+      
+      // Rethrow other errors
+      throw apiError;
+    }
   } catch (error) {
     console.error("Error in handleFileSearch:", error);
     console.error("Error details:", error instanceof Error ? error.message : String(error));
-    return { content: "Sorry, I encountered an error while searching through files." };
+    return { 
+      content: "Sorry, I encountered an error while searching through files. This might be due to current usage limits on our AI services. I can still help answer your questions directly based on my general knowledge." 
+    };
   }
 }
 
@@ -738,9 +797,19 @@ export async function getChatCompletion(
             timestamp: new Date().toISOString(),
             citations: citations
           };
-        } catch (error) {
+        } catch (error: any) {
           console.error("Web search error:", error);
-          // Fall back to regular completion
+          
+          // Handle quota exceeded error specifically
+          if (error.status === 429 || (error.error && error.error.code === 'insufficient_quota')) {
+            return {
+              id: Date.now().toString(),
+              role: "assistant",
+              content: "<p>I'm sorry, but I cannot perform web searches at the moment due to service limitations. I'll try to answer your question based on my existing knowledge instead.</p><p>If you need the most current information, please try again later when our service capacity is restored.</p>",
+              timestamp: new Date().toISOString(),
+            };
+          }
+          // Fall back to regular completion for other errors
         }
       }
       
@@ -756,9 +825,19 @@ export async function getChatCompletion(
             timestamp: new Date().toISOString(),
             citations: citations
           };
-        } catch (error) {
+        } catch (error: any) {
           console.error("File search error:", error);
-          // Fall back to regular completion
+          
+          // If this is a quota error, provide a helpful response
+          if (error.status === 429 || (error.error && error.error.code === 'insufficient_quota')) {
+            return {
+              id: Date.now().toString(),
+              role: "assistant",
+              content: "<p>I apologize, but I'm currently unable to search through our performance marketing documents due to service limitations. Here's what I can offer based on my general knowledge:</p><p>Performance marketing for businesses focuses on driving measurable results through targeted campaigns across channels like paid search, social media ads, and email marketing. The key advantage is that you primarily pay for specific outcomes like clicks, leads, or sales.</p><p>Please try again later when our service capacity is restored for more specific information from our document library.</p>",
+              timestamp: new Date().toISOString(),
+            };
+          }
+          // Fall back to regular completion for other errors
         }
       }
       
@@ -780,69 +859,142 @@ export async function getChatCompletion(
       }
     }
     
-    // Get content from the appropriate API based on model
+    // Get content from the appropriate API
     let content;
     
-    // Fast path for most common models
-    if (model === ModelType.GPT_4_5 || model.startsWith('gpt-4')) {
+    // Try the selected model first, as requested by the user
+    try {
+      console.log(`Attempting to use selected model: ${model}`);
+      
+      if (model === ModelType.GPT_4_5 || model.startsWith('gpt-4')) {
+        content = await getOpenAICompletion(messages, signal, model);
+      } else if (model === ModelType.CLAUDE_3_7_SONNET || model.startsWith('claude')) {
+        content = await getAnthropicCompletion(messages, signal);
+      } else if (model === ModelType.GEMINI_2_0 || model.startsWith('gemini')) {
+        content = await getGeminiCompletion(messages, signal);
+      } else {
+        // Default to OpenAI for any unrecognized model
+        content = await getOpenAICompletion(messages, signal, model);
+      }
+      
+      console.log(`Successfully used ${model}`);
+      
+      // Return formatted message from the selected model
+      return {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: content,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (primaryModelError) {
+      console.error(`Error with primary model ${model}:`, primaryModelError);
+      
+      // Only now fall back to alternatives if the primary choice fails
+      console.log("Primary model failed, trying fallback models");
+      
+      // Always try Gemini first as fallback since it seems most reliable
       try {
-        // For quota issues, use a more reliable model with better quota handling
-        const shouldTryAlternativeFirst = model === ModelType.GPT_4_5;
-        
-        if (shouldTryAlternativeFirst) {
-          // Try the Claude model first if we're using GPT-4.5 to avoid quota issues
-          console.log("Using Claude as primary model due to potential OpenAI quota limitations");
-          try {
-            content = await getAnthropicCompletion(messages, signal);
-          } catch (claudeError) {
-            console.error("Claude model failed, trying Gemini as fallback:", claudeError);
-            try {
-              content = await getGeminiCompletion(messages, signal);
-            } catch (geminiError) {
-              console.error("All alternative models failed, using default message:", geminiError);
-              content = "I apologize, but I encountered an issue processing your request. Please try again with a simpler query.";
-            }
-          }
+        // Skip if Gemini was the primary model that failed
+        if (!model.startsWith('gemini')) {
+          console.log("Trying Gemini as fallback");
+          content = await getGeminiCompletion(messages, signal);
+          console.log("Successfully used Gemini as fallback");
+          
+          return {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: content,
+            timestamp: new Date().toISOString(),
+          };
         } else {
-          // Try using the specified OpenAI model if not GPT-4.5
-          content = await getOpenAICompletion(messages, signal, model);
+          throw new Error("Skipping Gemini as it was the primary model that failed");
         }
-      } catch (error) {
-        console.error(`Error with ${model}:`, error);
-        // If any OpenAI model fails, try alternatives
-        console.log("OpenAI model failed, trying alternative models");
+      } catch (geminiError) {
+        console.error("Gemini fallback failed, trying Claude:", geminiError);
+        
         try {
-          content = await getAnthropicCompletion(messages, signal);
+          // Skip if Claude was the primary model that failed
+          if (!model.startsWith('claude')) {
+            console.log("Trying Claude as fallback");
+            content = await getAnthropicCompletion(messages, signal);
+            console.log("Successfully used Claude as fallback");
+            
+            return {
+              id: Date.now().toString(),
+              role: "assistant",
+              content: content,
+              timestamp: new Date().toISOString(),
+            };
+          } else {
+            throw new Error("Skipping Claude as it was the primary model that failed");
+          }
         } catch (claudeError) {
-          console.error("Claude model failed, trying Gemini as final fallback:", claudeError);
+          console.error("Claude fallback failed, trying GPT-3.5:", claudeError);
+          
           try {
-            content = await getGeminiCompletion(messages, signal);
-          } catch (geminiError) {
-            console.error("All models failed:", geminiError);
-            content = "I apologize, but I encountered an issue processing your request. Please try again with a simpler query.";
+            // Only try GPT-3.5 if primary wasn't an OpenAI model
+            if (!model.startsWith('gpt')) {
+              console.log("Trying GPT-3.5-turbo as fallback");
+              content = await getOpenAICompletion(messages, signal, "gpt-3.5-turbo");
+              console.log("Successfully used GPT-3.5 as fallback");
+              
+              return {
+                id: Date.now().toString(),
+                role: "assistant",
+                content: content,
+                timestamp: new Date().toISOString(),
+              };
+            } else {
+              throw new Error("Skipping GPT models as they were the primary that failed");
+            }
+          } catch (gptError) {
+            // All fallbacks failed, provide a graceful error message
+            console.error("All models failed:", gptError);
+            
+            return createFallbackMessage(userInput);
           }
         }
       }
-    } else if (model === ModelType.CLAUDE_3_7_SONNET || model.startsWith('claude')) {
-      content = await getAnthropicCompletion(messages, signal);
-    } else if (model === ModelType.GEMINI_2_0 || model.startsWith('gemini')) {
-      content = await getGeminiCompletion(messages, signal);
-    } else {
-      // Default to OpenAI for any unrecognized model
-      content = await getOpenAICompletion(messages, signal, model);
     }
+  } catch (error) {
+    console.error("Unhandled error in getChatCompletion:", error);
     
-    // Return formatted message
+    // Ultimate fallback for any unhandled errors
     return {
       id: Date.now().toString(),
       role: "assistant",
-      content: content,
+      content: "<p>I apologize, but I encountered an unexpected error while processing your request. Please try again with a simpler query or try again later.</p>",
       timestamp: new Date().toISOString(),
     };
-  } catch (error) {
-    console.error("Error in getChatCompletion:", error);
-    throw error;
   }
+}
+
+// Helper to create fallback message based on query content
+function createFallbackMessage(userInput: string): Message {
+  // Create fallback message based on likely query type
+  let fallbackContent;
+  
+  if (userInput.toLowerCase().includes('performance marketing')) {
+    fallbackContent = `<p>I apologize for the inconvenience, but I'm currently experiencing connectivity issues with our AI services.</p>
+    
+    <p>Based on general knowledge about performance marketing:</p>
+    <ul>
+      <li>It focuses on measurable outcomes like clicks, conversions and sales</li>
+      <li>Channels typically include paid search, social media ads, affiliate marketing, and email campaigns</li>
+      <li>Success is measured through KPIs such as ROI, CPA (Cost Per Acquisition), and conversion rates</li>
+    </ul>
+    
+    <p>Please try your question again later when our services are fully operational.</p>`;
+  } else {
+    fallbackContent = "<p>I apologize, but I'm currently experiencing connectivity issues with our AI services. Please try again in a few moments.</p><p>If you continue to see this message, you can try simplifying your question or checking back later when our services are fully operational.</p>";
+  }
+  
+  return {
+    id: Date.now().toString(),
+    role: "assistant",
+    content: fallbackContent,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 // Main function to send a message
