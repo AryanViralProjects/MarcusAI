@@ -31,7 +31,7 @@ export enum ModelType {
   GPT_4_5 = "gpt-4.5-preview-2025-02-27", // Default model
   GPT_4O = "gpt-4o", // Newer model using Responses API
   GPT_4O_MINI = "gpt-4o-mini", // Smaller/faster model
-  GPT_4O_MINI_SEARCH = "gpt-4o-mini-search-preview-2025-03-11", // Enhanced search
+  GPT_4O_MINI_SEARCH = "gpt-4o", // Web search tool uses standard gpt-4o
   CLAUDE_3_7_SONNET = "claude-3-7-sonnet-20250219", // Default Claude model
   GEMINI_2_0 = "gemini-2.0-flash", // Default Gemini model
   GPT_4_TURBO = 'gpt-4-turbo-preview',
@@ -246,59 +246,91 @@ function formatMessagesForGemini(messages: any[]) {
   });
 }
 
-// Web search functionality using OpenAI chat completions API
+// Web search functionality using OpenAI Responses API with web search tool
 async function handleWebSearch(query: string, signal?: AbortSignal): Promise<{ content: string, citations: Citation[] }> {
   try {
     console.log("Performing web search for:", query);
     
     try {
-      // Try OpenAI first for web search
-      const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo", // Use 3.5 instead of 4o to avoid quota issues
-        messages: [
-          {
-            role: "system",
-            content: "You are Marcus AI, a helpful AI assistant created by Aryan Bhargav. When answering questions, search the web for current information and cite your sources with markdown links."
-          },
-          {
-            role: "user",
-            content: query
-          }
-        ]
+      // Use the Responses API with web search tool as per documentation
+      console.log("Using OpenAI Responses API with web search tool");
+      
+      // Use a simplified approach with proper tool parameters based on documentation
+      const response = await openai.responses.create({
+        model: "gpt-4o", // Use gpt-4o which is confirmed to work with web search
+        input: query,
+        tools: [{ 
+          type: "web_search_preview",
+          search_context_size: "medium" // Add search context size parameter
+        }],
+        tool_choice: { type: "web_search_preview" }, // Force use of web search tool
       }, { signal });
       
-      console.log("Search response:", JSON.stringify(response, null, 2));
+      console.log("Web search raw response:", JSON.stringify(response.output.slice(0, 1), null, 2));
+      console.log("Web search response status:", response.id ? "Success" : "Failed");
       
-      // Extract content from the response
-      let content = '';
-      const citations: Citation[] = [];
+      // Extract the web search call
+      const webSearchCall = response.output.find(item => item.type === "web_search_call");
+      console.log("Web search call found:", webSearchCall ? "Yes" : "No");
       
-      if (response.choices && response.choices.length > 0 && response.choices[0].message) {
-        const message = response.choices[0].message;
-        content = message.content || '';
-        
-        // Extract URL citations from annotations if present
-        if (message.annotations && Array.isArray(message.annotations)) {
-          message.annotations.forEach((annotation, index) => {
-            if (annotation.type === 'url_citation' && annotation.url_citation) {
-              const { url, title, start_index, end_index } = annotation.url_citation;
-              
-              citations.push({
-                id: index + 1,
-                url: url,
-                title: title || `Source ${index + 1}`,
-                text: getTextSnippet(content, start_index, end_index) || "Citation from web search"
-              });
-            }
-          });
-        }
+      if (webSearchCall) {
+        console.log("Web search call details:", JSON.stringify(webSearchCall, null, 2));
       }
       
+      // Extract the message content and citations
+      const messageItem = response.output.find(item => item.type === "message");
+      if (!messageItem) {
+        console.error("No message item found in web search response");
+        return { 
+          content: "I apologize, but I couldn't find any web search results for your query. Let me answer based on my existing knowledge instead.",
+          citations: [] 
+        };
+      }
+      
+      // Get the text content
+      const textContent = messageItem.content?.find(item => item.type === "output_text");
+      if (!textContent) {
+        console.error("No text content found in web search response");
+        return { 
+          content: "I found some information online, but there was an issue processing the results. Let me answer based on my existing knowledge instead.", 
+          citations: [] 
+        };
+      }
+      
+      // Log the response text for debugging
+      console.log("Web search text content length:", textContent.text.length);
+      console.log("Web search text content preview:", textContent.text.substring(0, 100) + "...");
+      
+      // Log the number of annotations (citations) found
+      const citationsCount = textContent.annotations?.length || 0;
+      console.log(`Web search found ${citationsCount} citations`);
+      
+      if (citationsCount > 0) {
+        console.log("First citation type:", textContent.annotations?.[0]?.type);
+      }
+      
+      // Format citations if they exist
+      const citations = textContent.annotations?.map((annotation, index) => {
+        if (annotation.type === "url_citation") {
+          return {
+            id: index + 1,
+            url: annotation.url,
+            title: annotation.title || `Source ${index + 1}`,
+            text: getTextSnippet(textContent.text, annotation.start_index, annotation.end_index) || "Citation from web search"
+          };
+        }
+        return null;
+      }).filter(Boolean) as Citation[] || [];
+      
       return {
-        content,
+        content: textContent.text,
         citations
       };
     } catch (openaiError: any) {
+      // Log the detailed error for debugging
+      console.error("Web search API error:", openaiError.status, openaiError.message);
+      console.error("Error details:", openaiError.error || openaiError);
+      
       // If OpenAI fails (especially due to quota), try Gemini
       if (openaiError.status === 429 || (openaiError.error && openaiError.error.code === 'insufficient_quota')) {
         console.log("OpenAI quota exceeded for web search, falling back to Gemini");
@@ -336,6 +368,9 @@ async function handleWebSearch(query: string, signal?: AbortSignal): Promise<{ c
         };
       }
       
+      // Log detailed error information
+      console.error("OpenAI web search error details:", JSON.stringify(openaiError, null, 2));
+      
       // Rethrow if it's not a quota error
       throw openaiError;
     }
@@ -366,53 +401,128 @@ function getTextSnippet(text: string, startIndex: number, endIndex: number): str
 
 // Format web search results with citations for display
 function formatWebSearchResult(content: string, citations: Citation[]): string {
-  if (citations.length === 0) {
-    return content;
-  }
-  
+  // First clean up the content
   let formattedContent = content;
   
-  // Simple citation processing - optimize for speed
-  const circledNumbers = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
-  
-  // Generate HTML for each citation
-  const citationLinks = citations.map((citation, index) => {
-    const circledNumber = index < 10 ? circledNumbers[index] : `[${index + 1}]`;
-    
-    return `<div class="citation">
-      <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link">
-        <span class="citation-number">${circledNumber}</span>
-        <span class="citation-title">${citation.title}</span>
-      </a>
-      <div class="citation-url">${citation.url}</div>
-    </div>`;
-  }).join('\n');
-  
-  // Apply basic formatting
+  // Apply basic text formatting
   formattedContent = formattedContent
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
   
-  // Faster paragraph formatting
-  formattedContent = '<p>' + formattedContent.replace(/\n\n/g, '</p><p>') + '</p>';
+  // Add HTML structure for better formatting of headings
+  formattedContent = formattedContent
+    .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.*?)$/gm, '<h1>$1</h1>');
   
-  // Add the sources section
-  formattedContent += `
+  // Format numbered lists
+  formattedContent = formattedContent.replace(/^\d+\.\s+(.*)$/gm, (match, p1) => {
+    return `<li>${p1}</li>`;
+  });
+  formattedContent = formattedContent.replace(/(<li>.*?<\/li>\n)+/g, (match) => {
+    return `<ol>\n${match}</ol>`;
+  });
+  
+  // Format bullet lists
+  formattedContent = formattedContent.replace(/^[\*\-]\s+(.*)$/gm, (match, p1) => {
+    return `<li>${p1}</li>`;
+  });
+  formattedContent = formattedContent.replace(/(<li>.*?<\/li>\n)+/g, (match) => {
+    if (!match.startsWith('<ol>')) {
+      return `<ul>\n${match}</ul>`;
+    }
+    return match;
+  });
+  
+  // Proper paragraph formatting
+  formattedContent = formattedContent
+    .replace(/(?:\r\n|\r|\n){2,}/g, '</p><p>')
+    .replace(/<\/p><p>(\s*<(ol|ul)>)/g, '$1')
+    .replace(/(<\/(ol|ul)>\s*)<\/p><p>/g, '$1</p><p>');
+  
+  if (!formattedContent.startsWith('<p>') && !formattedContent.startsWith('<h')) {
+    formattedContent = '<p>' + formattedContent;
+  }
+  if (!formattedContent.endsWith('</p>') && !formattedContent.endsWith('</ol>') && !formattedContent.endsWith('</ul>')) {
+    formattedContent = formattedContent + '</p>';
+  }
+  
+  // If no citations are available, just return the formatted content
+  if (!citations || citations.length === 0) {
+    return formattedContent;
+  }
+  
+  // Create a better-looking sources section
+  const sourcesSection = `
 <div class="sources-section">
   <div class="sources-header">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="10"></circle>
-    <line x1="12" y1="8" x2="12" y2="16"></line>
-    <line x1="8" y1="12" x2="16" y2="12"></line>
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="16"></line>
+      <line x1="8" y1="12" x2="16" y2="12"></line>
     </svg>
     <span>Sources</span>
   </div>
   <div class="citations-container">
-    ${citationLinks}
+    ${citations.map((citation, index) => `
+      <div class="citation">
+        <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link">
+          <span class="citation-number">[${index + 1}]</span>
+          <span class="citation-title">${citation.title}</span>
+        </a>
+        <div class="citation-url">${citation.url.substring(0, 80)}${citation.url.length > 80 ? '...' : ''}</div>
+      </div>
+    `).join('\n')}
   </div>
-</div>`;
-  
-  return formattedContent;
+</div>
+<style>
+  .sources-section {
+    margin-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 16px;
+  }
+  .sources-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .sources-header svg {
+    margin-right: 8px;
+    color: #0070f3;
+  }
+  .citations-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .citation {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background-color: #f5f5f5;
+  }
+  .citation-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: #0070f3;
+    margin-bottom: 4px;
+  }
+  .citation-number {
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .citation-title {
+    font-weight: 500;
+  }
+  .citation-url {
+    font-size: 0.85em;
+    color: #666;
+    word-break: break-all;
+  }
+</style>`;
+
+  return formattedContent + sourcesSection;
 }
 
 // Format AI response content into structured HTML
@@ -787,6 +897,7 @@ export async function getChatCompletion(
       // Web Search tool - always use the dedicated search model
       if (tools.includes(ToolType.WEB_SEARCH)) {
         try {
+          console.log("Using web search tool with search-specific model");
           const { content, citations } = await handleWebSearch(userInput, signal);
           const formattedContent = formatWebSearchResult(content, citations);
           
